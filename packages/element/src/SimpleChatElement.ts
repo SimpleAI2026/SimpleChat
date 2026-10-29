@@ -8,11 +8,15 @@ import {
   getTheme,
   listThemes,
   loadPersistedSettings,
+  loadSidebarWidth,
   mergeConfigPriority,
   readEnvDefaults,
   isThemeId,
   resolveThemeId,
   savePersistedSettings,
+  saveSidebarWidth,
+  clampSidebarWidth,
+  SC_WIDTH_DEFAULT,
   type ChatMessage,
   type ChatThread,
   type HostTool,
@@ -87,8 +91,13 @@ export class SimpleChatElement extends HTMLElement {
   private threadNameEl!: HTMLElement;
   private drawerEl!: HTMLElement;
   private settingsEl!: HTMLElement;
+  private hostSettingsSlotEl: HTMLElement | null = null;
+  private hostSettingsNode: HTMLElement | null = null;
   private errorEl!: HTMLElement;
   private styleEl!: HTMLStyleElement;
+  private resizeHandleEl: HTMLElement | null = null;
+  private panelWidth = SC_WIDTH_DEFAULT;
+  private resizing = false;
   private unbound: Array<() => void> = [];
 
   constructor() {
@@ -143,6 +152,14 @@ export class SimpleChatElement extends HTMLElement {
   }
   set systemPrompt(v: string) {
     this._systemPrompt = v ?? '';
+    // Prefer in-memory prompt — never mirror multiline text into the attribute
+    // (Vue/HTML attribute sync mangles newlines, same class of bug as themeCss).
+    this.suppressAttrSync = true;
+    try {
+      this.removeAttribute('system-prompt');
+    } finally {
+      this.suppressAttrSync = false;
+    }
     this.engine?.updateConfig({ systemPrompt: this._systemPrompt });
   }
 
@@ -271,6 +288,30 @@ export class SimpleChatElement extends HTMLElement {
       this.suppressAttrSync = false;
     }
     this.rebuildThemeLayers();
+  }
+
+  /**
+   * Host can append a custom section into the settings drawer (e.g. Built-in AI status).
+   * Pass null to clear. Survives re-open; re-attached after renderShell if needed.
+   */
+  setHostSettingsSlot(el: HTMLElement | null): void {
+    this.hostSettingsNode = el;
+    this.attachHostSettingsSlot();
+  }
+
+  private attachHostSettingsSlot(): void {
+    const slot =
+      this.hostSettingsSlotEl ||
+      (this.settingsEl?.querySelector('[data-host-settings]') as HTMLElement | null);
+    if (!slot) return;
+    this.hostSettingsSlotEl = slot;
+    slot.replaceChildren();
+    if (this.hostSettingsNode) {
+      slot.appendChild(this.hostSettingsNode);
+      slot.hidden = false;
+    } else {
+      slot.hidden = true;
+    }
   }
 
   private resolveActiveThemeId(): string {
@@ -483,7 +524,10 @@ export class SimpleChatElement extends HTMLElement {
         <div class="sc-settings-drawer" hidden>
           <div class="sc-settings-drawer-head">
             <span>设置</span>
-            <button type="button" class="sc-icon-btn" data-act="settings-close" title="关闭设置" aria-label="关闭设置">×</button>
+            <div class="sc-settings-drawer-actions">
+              <button type="button" class="sc-btn-primary sc-settings-save-btn" data-act="settings-save" title="保存" aria-label="保存">保存</button>
+              <button type="button" class="sc-icon-btn" data-act="settings-close" title="关闭设置" aria-label="关闭设置">×</button>
+            </div>
           </div>
           <div class="sc-settings-form">
             <label class="sc-field">
@@ -530,10 +574,7 @@ export class SimpleChatElement extends HTMLElement {
                 <input type="text" data-field="toolFontSize" placeholder="12px" autocomplete="off" />
               </label>
             </div>
-            <div class="sc-settings-actions">
-              <button type="button" class="sc-btn-ghost" data-act="settings-cancel">取消</button>
-              <button type="button" class="sc-btn-primary" data-act="settings-save">保存</button>
-            </div>
+            <div class="sc-host-settings-slot" data-host-settings hidden></div>
             <p class="sc-settings-hint">Base URL 不要包含 <code>/chat/completions</code>。勾选「记住 API Key」会写入本机 localStorage，存在 XSS 泄露风险。宿主 themeCss / themeStyle 仍可覆盖主题。</p>
           </div>
         </div>
@@ -559,6 +600,10 @@ export class SimpleChatElement extends HTMLElement {
     this.threadNameEl = this.rootEl.querySelector('.sc-thread-name')!;
     this.drawerEl = this.rootEl.querySelector('.sc-thread-drawer')!;
     this.settingsEl = this.rootEl.querySelector('.sc-settings-drawer')!;
+    this.hostSettingsSlotEl = this.settingsEl.querySelector(
+      '[data-host-settings]',
+    ) as HTMLElement | null;
+    this.attachHostSettingsSlot();
     this.errorEl = this.rootEl.querySelector('.sc-error')!;
 
     this.rootEl.addEventListener('click', (e) => {
@@ -572,7 +617,7 @@ export class SimpleChatElement extends HTMLElement {
       if (act === 'settings') {
         this.toggleSettings();
       }
-      if (act === 'settings-close' || act === 'settings-cancel') {
+      if (act === 'settings-close') {
         this.closeSettings(false);
       }
       if (act === 'settings-save') {
@@ -602,7 +647,106 @@ export class SimpleChatElement extends HTMLElement {
       }
     });
 
+    this.ensureResizeHandle();
+    this.applyPanelWidth(loadSidebarWidth(), { persist: false, emit: true });
     this.applyLayout();
+  }
+
+  /** Current sidebar / panel width in px. */
+  getWidth(): number {
+    return this.panelWidth;
+  }
+
+  /** Set sidebar / panel width (clamped), persist by default, emit sc-resize. */
+  setWidth(width: number, opts?: { persist?: boolean; emit?: boolean }): number {
+    return this.applyPanelWidth(width, {
+      persist: opts?.persist !== false,
+      emit: opts?.emit !== false,
+    });
+  }
+
+  private ensureResizeHandle(): void {
+    if (!this.rootEl) return;
+    let handle = this.rootEl.querySelector('.sc-resize-handle') as HTMLElement | null;
+    if (!handle) {
+      handle = document.createElement('div');
+      handle.className = 'sc-resize-handle';
+      handle.setAttribute('role', 'separator');
+      handle.setAttribute('aria-orientation', 'vertical');
+      handle.setAttribute('aria-label', '调整宽度');
+      handle.title = '拖动调整宽度';
+      this.rootEl.appendChild(handle);
+      handle.addEventListener('pointerdown', (e) => this.onResizePointerDown(e));
+    }
+    this.resizeHandleEl = handle;
+    this.syncResizeHandleSide();
+  }
+
+  private syncResizeHandleSide(): void {
+    if (!this.resizeHandleEl || !this.rootEl) return;
+    const layout = this.getAttribute('layout') || 'sidebar';
+    const pos = this.getAttribute('position') || 'right';
+    // Right sidebar / panel: handle on left edge. Left sidebar: handle on right edge.
+    const onStart = layout === 'panel' || pos !== 'left';
+    this.resizeHandleEl.dataset.edge = onStart ? 'start' : 'end';
+  }
+
+  private onResizePointerDown(e: PointerEvent): void {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = this.resizeHandleEl;
+    if (!handle) return;
+    this.resizing = true;
+    handle.dataset.active = 'true';
+    handle.setPointerCapture?.(e.pointerId);
+    const layout = this.getAttribute('layout') || 'sidebar';
+    const pos = this.getAttribute('position') || 'right';
+    const fromRight = layout === 'panel' || pos !== 'left';
+    const onMove = (ev: PointerEvent) => {
+      if (!this.resizing) return;
+      const next = fromRight ? window.innerWidth - ev.clientX : ev.clientX;
+      this.applyPanelWidth(next, { persist: false, emit: true });
+    };
+    const onUp = (ev: PointerEvent) => {
+      this.resizing = false;
+      handle.dataset.active = 'false';
+      try {
+        handle.releasePointerCapture?.(ev.pointerId);
+      } catch {
+        /* ignore */
+      }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      this.applyPanelWidth(this.panelWidth, { persist: true, emit: true });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }
+
+  private applyPanelWidth(
+    width: number,
+    opts?: { persist?: boolean; emit?: boolean },
+  ): number {
+    const next = clampSidebarWidth(width);
+    this.panelWidth = next;
+    this.style.setProperty('--sc-width', `${next}px`);
+    if (this.rootEl) {
+      this.rootEl.style.setProperty('--sc-width', `${next}px`);
+    }
+    if (opts?.persist) saveSidebarWidth(next);
+    if (opts?.emit) {
+      this.dispatchEvent(
+        new CustomEvent('sc-resize', {
+          bubbles: true,
+          composed: true,
+          detail: { width: next },
+        }),
+      );
+    }
+    return next;
   }
 
   private applyLayout(): void {
@@ -625,6 +769,7 @@ export class SimpleChatElement extends HTMLElement {
         this.rootEl.style.borderRight = 'none';
       }
     }
+    this.syncResizeHandleSide();
   }
 
   private updateSendBtn(): void {
@@ -878,8 +1023,8 @@ export class SimpleChatElement extends HTMLElement {
       else this.removeAttribute('api-base-url');
       if (model) this.setAttribute('model', model);
       else this.removeAttribute('model');
-      if (systemPrompt) this.setAttribute('system-prompt', systemPrompt);
-      else this.removeAttribute('system-prompt');
+      // Keep systemPrompt in memory / engine only (do not write multiline attribute).
+      this.removeAttribute('system-prompt');
       this.setAttribute('theme-id', themeId);
     } finally {
       this.suppressAttrSync = false;

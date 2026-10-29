@@ -27,7 +27,7 @@ export const SimpleChatSidebar = defineComponent({
     themeCss: { type: String, default: '' },
     themeStyle: { type: Object as PropType<CSSProperties & Record<string, string>>, default: () => ({}) },
   },
-  emits: ['update:open', 'close'],
+  emits: ['update:open', 'close', 'resize'],
   setup(props, { emit, expose }) {
     const elRef = ref<SimpleChatElement | null>(null);
     let syncedToolKey = '';
@@ -90,15 +90,23 @@ export const SimpleChatSidebar = defineComponent({
     onMounted(() => {
       applyAll(true);
       elRef.value?.addEventListener('sc-close', onClose as EventListener);
+      elRef.value?.addEventListener('sc-resize', onResize as EventListener);
     });
 
     onBeforeUnmount(() => {
       elRef.value?.removeEventListener('sc-close', onClose as EventListener);
+      elRef.value?.removeEventListener('sc-resize', onResize as EventListener);
     });
 
     function onClose() {
       emit('update:open', false);
       emit('close');
+    }
+
+    function onResize(e: Event) {
+      const detail = (e as CustomEvent<{ width?: number }>).detail;
+      const width = Number(detail?.width);
+      if (Number.isFinite(width)) emit('resize', { width });
     }
 
     // Config / theme — no tool re-register
@@ -140,6 +148,10 @@ export const SimpleChatSidebar = defineComponent({
         elRef.value?.setToolStyle(style, opts),
       getUiStyle: () => elRef.value?.getUiStyle(),
       getToolStyle: () => elRef.value?.getToolStyle(),
+      setHostSettingsSlot: (el: HTMLElement | null) => elRef.value?.setHostSettingsSlot(el),
+      getWidth: () => elRef.value?.getWidth?.(),
+      setWidth: (width: number, opts?: { persist?: boolean; emit?: boolean }) =>
+        elRef.value?.setWidth?.(width, opts),
     });
 
     return () =>
@@ -153,9 +165,9 @@ export const SimpleChatSidebar = defineComponent({
         'storage-key': props.storageKey,
         'api-base-url': props.config.apiBaseUrl ?? '',
         model: props.config.model ?? '',
-        'system-prompt': props.config.systemPrompt ?? '',
         'theme-id': resolvedThemeId() || undefined,
-        // Do NOT pass multiline themeCss as attribute — applyThemeCss handles it.
+        // Do NOT pass multiline systemPrompt / themeCss as attributes —
+        // apply via el.systemPrompt / el.setConfig / applyThemeCss (same class of bug).
         onScClose: onClose,
       });
   },

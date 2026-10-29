@@ -26,6 +26,13 @@ export {
   savePersistedSettings,
   mergeConfigPriority,
   resolveChatSettings,
+  SC_WIDTH_MIN,
+  SC_WIDTH_MAX,
+  SC_WIDTH_DEFAULT,
+  SC_WIDTH_STORAGE_KEY,
+  clampSidebarWidth,
+  loadSidebarWidth,
+  saveSidebarWidth,
   type PersistedSettings,
   type ResolvedChatSettings,
 } from './settings.js';
@@ -46,3 +53,5 @@ export {
 } from './themes.js';
 
 export { parseToolArguments, extractBrokenCssField } from './parseToolArgs.js';
+
+export { normalizeSecret } from './normalizeSecret.js';

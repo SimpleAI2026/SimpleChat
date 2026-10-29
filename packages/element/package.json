@@ -14,8 +14,7 @@
     "./style.css": "./dist/style.css"
   },
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "scripts": {
     "build": "tsup",
@@ -29,5 +28,13 @@
     "tsup": "^8.4.0",
     "typescript": "^5.8.2"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SimpleAI2026/SimpleChat",
+    "directory": "packages/element"
+  }
 }

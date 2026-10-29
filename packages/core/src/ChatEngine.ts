@@ -12,6 +12,7 @@ import {
   type ToolCall,
 } from './types.js';
 import { mergeToolCallDeltas, parseSSEStream, type AccumulatedToolCall } from './sse.js';
+import { normalizeSecret } from './normalizeSecret.js';
 
 export interface ChatEngineOptions {
   config: SimpleChatConfig;
@@ -242,7 +243,7 @@ export class ChatEngine {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${normalizeSecret(apiKey)}`,
         ...headers,
       },
       body: JSON.stringify(body),

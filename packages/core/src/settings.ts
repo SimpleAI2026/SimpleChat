@@ -28,6 +28,37 @@ export interface ResolvedChatSettings {
 }
 
 /** localStorage key for in-panel settings, scoped by element storage-key. */
+/** Sidebar / host panel width (px). Shared UI chrome, not per-thread. */
+export const SC_WIDTH_MIN = 320;
+export const SC_WIDTH_MAX = 720;
+export const SC_WIDTH_DEFAULT = 400;
+export const SC_WIDTH_STORAGE_KEY = 'simplechat:sidebar-width';
+
+export function clampSidebarWidth(n: number): number {
+  if (!Number.isFinite(n)) return SC_WIDTH_DEFAULT;
+  return Math.min(SC_WIDTH_MAX, Math.max(SC_WIDTH_MIN, Math.round(n)));
+}
+
+export function loadSidebarWidth(): number {
+  try {
+    if (typeof localStorage === 'undefined') return SC_WIDTH_DEFAULT;
+    const raw = localStorage.getItem(SC_WIDTH_STORAGE_KEY);
+    if (raw == null || raw === '') return SC_WIDTH_DEFAULT;
+    return clampSidebarWidth(Number(raw));
+  } catch {
+    return SC_WIDTH_DEFAULT;
+  }
+}
+
+export function saveSidebarWidth(width: number): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(SC_WIDTH_STORAGE_KEY, String(clampSidebarWidth(width)));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 export function settingsStorageKey(storageKey: string): string {
   return `${storageKey || 'simplechat'}:settings`;
 }

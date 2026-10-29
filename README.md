@@ -1,22 +1,25 @@
 # SimpleChat
 
+[English](./README_EN.md) | 中文
+
 纯前端、可嵌入的 **OpenAI 兼容** 侧栏聊天 SDK。宿主传入 `apiBaseUrl` / `apiKey` / `model`，并可 `registerTool` 让模型调用浏览器内宿主 API。默认 UI 为 shadcn 风格黑白主题。
 
-> 规划文档见 [`plan/`](./plan/)。本仓库实现 Phase P0–P4（Core / Web Component / Vue 薄封装 / Demo）。**不**包含 SimpleMind / SimpleExcalidraw 接入。
+- 仓库：https://github.com/SimpleAI2026/SimpleChat
+
+> 规划文档见 [`plan/`](./plan/)。本仓库实现 Phase P0–P4（Core / Web Component / Vue 薄封装 / Demo）。宿主接入（如 SimpleMind）通过 **浏览器 min bundle 拷贝**，**不**走 Yarn portal / npm link。
 
 ## Packages
 
 | Package | 说明 |
 | --- | --- |
-| `@simplechat/core` | `ChatEngine`、工具注册、IndexedDB / Memory 历史、SSE 流式 |
+| `@simplechat/core` | `ChatEngine`、工具注册、IndexedDB / Memory 历史、SSE 流式、`normalizeSecret` |
 | `@simplechat/element` | `<simple-chat>` Web Component（Shadow DOM + `--sc-*`） |
-| `@simplechat/vue` | Vue 3 薄封装 `SimpleChatSidebar` |
+| `@simplechat/vue` | Vue 3 薄封装 `SimpleChatSidebar`（monorepo 内使用） |
 | `@simplechat/demo` | Vite Demo：配置面板 + 侧栏 + 示例工具 |
 
 ## Quick start
 
-> Packages publish from `packages/*/dist`. After clone: `yarn install && yarn build` before linking or portal into a host (e.g. SimpleMind).
-
+> Packages 从 `packages/*/dist` 发布。克隆后先：`yarn install && yarn build`。
 
 ```bash
 yarn install
@@ -46,6 +49,42 @@ yarn workspace @simplechat/demo dev
 
 示例工具：`get_page_title`、`alert_message`、`propose_style_css`（AI 只把 CSS 写入左侧输入框，需用户点「应用配置」才生效）。
 
+## Browser min bundle（宿主 vendor，无 npm portal）
+
+宿主（例如 [SimpleMind](https://github.com/SimpleAI2026/SimpleMind)）**不应** Yarn-portal / npm-link 本 monorepo。请构建一份压缩 ESM，注册 `<simple-chat>` 并导出宽度工具：
+
+```bash
+yarn build:min
+# → dist/simplechat.min.js
+# 若兄弟目录存在 ../SimpleMind，默认拷贝到：
+#    ../SimpleMind/src/vendor/simplechat/simplechat.min.js
+yarn build:min --no-copy   # 仅写 dist/
+```
+
+宿主侧导入：
+
+```js
+import {
+  loadSidebarWidth,
+  clampSidebarWidth,
+  SC_WIDTH_DEFAULT,
+} from './vendor/simplechat/simplechat.min.js';
+// side effect: customElements.define('simple-chat', …)
+```
+
+样式在元素 Shadow DOM（`defaultStyles`）内，**无需**再拷一份 CSS。SimpleMind 另用本地 `src/components/SimpleChatSidebar.js` 包一层 `<simple-chat layout="panel">`，**无** `@simplechat/*` 依赖。
+
+### 与 SimpleMind 的当前集成
+
+| 项 | 说明 |
+| --- | --- |
+| 产物路径 | `yarn build:min` → `SimpleMind/src/vendor/simplechat/simplechat.min.js` |
+| Chat 面板 | Editor 右侧嵌入 `<simple-chat>`；多轮聊天 + `registerTool` |
+| 设置 ⚙ | 面板右上角打开：Base URL / API Key / Model / 主题 / 工具样式；可 `setHostSettingsSlot` 注入宿主区块 |
+| `my-` Key | API Key 若以 `my-` 开头，则去掉前缀后做 **Base64（含 URL-safe）解码** 再作为 Bearer；解码失败回退原值（见 `normalizeSecret`） |
+| 可拖宽度 | 左缘 resize handle（约 320–720px），同步 `--sc-width`、`localStorage` `simplechat:sidebar-width`、宿主 `--ai-panel-width` |
+| 依赖方式 | **无** npm portal / Yarn link；只拷贝 min 文件 |
+
 ## Embed
 
 ### Web Component
@@ -71,7 +110,7 @@ yarn workspace @simplechat/demo dev
 ></simple-chat>
 ```
 
-### Vue 3
+### Vue 3（monorepo 包）
 
 ```vue
 <script setup>
@@ -92,12 +131,21 @@ import { SimpleChatSidebar } from '@simplechat/vue';
 | 字段 | 说明 |
 | --- | --- |
 | `apiBaseUrl` | OpenAI 兼容根路径，**不含** `/chat/completions` |
-| `apiKey` | `Authorization: Bearer …` |
+| `apiKey` | `Authorization: Bearer …`；支持 `my-` + Base64 编码值（见下） |
 | `model` | 模型 ID |
 | `systemPrompt` | 可选 |
 | `storageKey` | IndexedDB 与设置 localStorage 命名空间 |
 
 请求实际发往：`POST {apiBaseUrl}/chat/completions`。
+
+### `my-` API Key（Base64 解密）
+
+发送请求前，`ChatEngine` 会对 Key 调用 `normalizeSecret`：
+
+- 不以 `my-` 开头：trim 后原样使用
+- 以 `my-` 开头：去掉前缀，按 **URL-safe Base64**（`-`/`_` → `+`/`/`，自动补 `=`）解码；失败则回退原始字符串
+
+便于在配置里存放编码后的密钥，而不是明文。
 
 ### 配置优先级
 
@@ -106,7 +154,7 @@ import { SimpleChatSidebar } from '@simplechat/vue';
 3. 环境变量（`readEnvDefaults()`，见上表；不含 systemPrompt）
 4. 空
 
-`<simple-chat>` 右上角 ⚙ 打开设置面板（含 **系统提示词**）；**保存**后写入 localStorage 并 `updateConfig`，无需刷新。取消或再次点 ⚙ 关闭且不应用未保存编辑。
+`<simple-chat>` 右上角 **⚙** 打开设置面板（含 **系统提示词**）；**保存**后写入 localStorage 并 `updateConfig`，无需刷新。取消或再次点 ⚙ 关闭且不应用未保存编辑。
 
 ### 系统提示词写入接口
 
@@ -161,9 +209,17 @@ Shadow DOM **不会**继承父节点 CSS 变量；额外覆盖请用：
 />
 ```
 
+## Resizable sidebar
+
+`layout="sidebar"` / `panel` 时提供拖拽改宽：
+
+- 常量：`SC_WIDTH_MIN` / `SC_WIDTH_MAX` / `SC_WIDTH_DEFAULT`
+- 持久化：`localStorage` 键 `simplechat:sidebar-width`（可用 `loadSidebarWidth` / `clampSidebarWidth`）
+- 事件：`sc-resize`（detail 含宽度）
+
 ## Security
 
-浏览器内持有 API Key **仅适合个人/内网 Demo**。生产请使用同源代理（`proxyUrl` 路线图，见 plan P6）。勾选「记住 API Key」（Demo 表单或组件内设置）会写入 localStorage，存在 XSS 泄露风险。
+浏览器内持有 API Key **仅适合个人/内网 Demo**。生产请使用同源代理（`proxyUrl` 路线图，见 plan P6）。勾选「记住 API Key」（Demo 表单或组件内设置）会写入 localStorage，存在 XSS 泄露风险。`my-` 编码不是加密，只是传输/粘贴时的轻度混淆。
 
 ## License
 

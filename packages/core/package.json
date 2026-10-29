@@ -13,8 +13,7 @@
     }
   },
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "scripts": {
     "build": "tsup",
@@ -28,5 +27,13 @@
     "typescript": "^5.8.2",
     "vitest": "3.2.4"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SimpleAI2026/SimpleChat",
+    "directory": "packages/core"
+  }
 }
