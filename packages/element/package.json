@@ -1,0 +1,33 @@
+{
+  "name": "@simplechat/element",
+  "version": "0.1.0",
+  "description": "SimpleChat Web Component (<simple-chat>) with shadcn-like B&W UI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@simplechat/core": "0.1.0",
+    "marked": "^15.0.7"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2"
+  },
+  "license": "MIT"
+}

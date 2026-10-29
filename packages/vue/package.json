@@ -1,0 +1,36 @@
+{
+  "name": "@simplechat/vue",
+  "version": "0.1.0",
+  "description": "Thin Vue 3 wrapper for SimpleChat Web Component",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "dependencies": {
+    "@simplechat/core": "0.1.0",
+    "@simplechat/element": "0.1.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2",
+    "vue": "^3.5.22"
+  },
+  "license": "MIT"
+}

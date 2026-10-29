@@ -1,0 +1,458 @@
+:root {
+  color-scheme: light;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #0a0a0a;
+  background: #fafafa;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: #fafafa;
+}
+
+.demo-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.demo-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  min-height: 56px;
+  padding: 0 24px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fff;
+}
+
+.demo-top h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.demo-top nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.demo-top a {
+  color: #737373;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.demo-top a:hover {
+  color: #0a0a0a;
+  background: #f5f5f5;
+}
+
+.demo-main {
+  flex: 1;
+  display: grid;
+  /* Wider left column so labels/controls breathe; leave room for right sidebar (~400px) */
+  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.demo-config {
+  border-right: 1px solid #e5e5e5;
+  background: #fff;
+  padding: 24px 20px 32px;
+  overflow-y: auto;
+}
+
+.demo-config h2 {
+  margin: 0 0 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #737373;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.field > label {
+  display: block;
+  font-size: 12px;
+  font-weight: 550;
+  margin-bottom: 8px;
+  color: #0a0a0a;
+  letter-spacing: -0.01em;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  background: #fff;
+  color: #0a0a0a;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: #0a0a0a;
+  box-shadow: 0 0 0 1px #0a0a0a;
+}
+
+/* Remember checkbox stacked under API Key — never clips beside the input */
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #525252;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.remember input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  accent-color: #171717;
+  cursor: pointer;
+}
+
+.remember span {
+  line-height: 1.3;
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  background: #171717;
+  color: #fafafa;
+  border-radius: 10px;
+  padding: 0 16px;
+  height: 40px;
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  width: 100%;
+  transition: filter 140ms ease;
+}
+
+.btn:hover { filter: brightness(1.08); }
+
+.btn.secondary {
+  background: transparent;
+  color: #0a0a0a;
+  border: 1px solid #e5e5e5;
+  margin-top: 8px;
+}
+
+.btn.secondary:hover {
+  background: #f5f5f5;
+  filter: none;
+}
+
+.hint {
+  margin-top: 20px;
+  font-size: 12px;
+  color: #737373;
+  line-height: 1.55;
+}
+
+.hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: #f5f5f5;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.warn {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e5e5e5;
+  background: #fafafa;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #404040;
+}
+
+.demo-preview {
+  position: relative;
+  background:
+    linear-gradient(#ececec 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, #ececec 1px, transparent 1px) 0 0 / 32px 32px,
+    #f7f7f7;
+  min-height: calc(100vh - 56px);
+  /* Keep wiki clear of fixed right sidebar (~400px + padding) */
+  padding: 24px 420px 40px 24px;
+  overflow: auto;
+}
+
+/* ——— Accent radios: horizontal, uncramped ——— */
+.accent-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  min-height: 36px;
+}
+
+.accent-option {
+  display: inline-flex !important;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0 !important;
+  font-size: 13px;
+  font-weight: 500;
+  color: #0a0a0a;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.accent-option input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  accent-color: #171717;
+  cursor: pointer;
+}
+
+.accent-color {
+  margin-top: 10px;
+  width: 48px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* ——— Middle wiki ——— */
+.demo-wiki {
+  max-width: 720px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 20px 22px 24px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+.demo-wiki-head {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.demo-wiki-head h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.demo-wiki-head p {
+  margin: 0;
+  font-size: 12px;
+  color: #737373;
+  line-height: 1.5;
+}
+
+.wiki-section {
+  margin-bottom: 18px;
+}
+
+.wiki-section h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.wiki-section p,
+.wiki-section li {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #404040;
+}
+
+.wiki-section ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+
+.wiki-section code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: #f5f5f5;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.wiki-section pre {
+  margin: 8px 0 10px;
+  padding: 12px 14px;
+  background: #0a0a0a;
+  color: #fafafa;
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.wiki-section pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.wiki-note {
+  margin-bottom: 0;
+  padding: 12px 14px;
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+}
+
+.wiki-note p {
+  margin: 0;
+  color: #525252;
+}
+
+@media (max-width: 1100px) {
+  .demo-preview {
+    padding-right: 24px;
+  }
+}
+
+@media (max-width: 860px) {
+  .demo-main {
+    grid-template-columns: 1fr;
+  }
+  .demo-preview {
+    min-height: 70vh;
+    padding: 20px;
+  }
+}
+
+
+/* ——— Theme picker (10 packs) ——— */
+.theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.theme-option {
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0 !important;
+  padding: 8px 10px;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0a0a0a;
+  background: #fff;
+  user-select: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.theme-option:hover { background: #fafafa; }
+
+.theme-option.active {
+  border-color: #0a0a0a;
+  box-shadow: 0 0 0 1px #0a0a0a;
+}
+
+.theme-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+.theme-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  border: 1px solid #e5e5e5;
+  background:
+    linear-gradient(135deg, var(--sw1, #171717) 0 50%, var(--sw2, #fff) 50% 100%);
+  box-shadow: inset -4px -4px 0 0 var(--sw3, #e5e5e5);
+}
+
+.theme-label {
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+
+.css-label {
+  display: block;
+  margin-top: 14px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 550;
+  color: #0a0a0a;
+}
+
+.css-editor {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 11.5px !important;
+  line-height: 1.45 !important;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.btn.css-apply {
+  margin-top: 8px;
+  height: 36px;
+  background: #171717;
+}
+
+.css-hint {
+  margin-top: 10px !important;
+}
