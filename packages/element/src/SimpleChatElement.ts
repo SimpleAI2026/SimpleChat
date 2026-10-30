@@ -5,6 +5,7 @@ import {
   composeThemeCss,
   normalizeHostThemeCss,
   DEFAULT_THEME_ID,
+  DEFAULT_MODEL,
   getTheme,
   listThemes,
   loadPersistedSettings,
@@ -623,7 +624,7 @@ export class SimpleChatElement extends HTMLElement {
             </label>
             <label class="sc-field">
               <span class="sc-field-label">Model</span>
-              <input type="text" data-field="model" placeholder="model id" autocomplete="off" spellcheck="false" />
+              <input type="text" data-field="model" placeholder="zai-org/GLM-5.3-Flash" autocomplete="off" spellcheck="false" />
             </label>
             </div>
             <label class="sc-field">
@@ -1047,7 +1048,7 @@ export class SimpleChatElement extends HTMLElement {
         '';
     }
     if (model) {
-      model.value = cfg.model || stored?.model || env.model || '';
+      model.value = cfg.model || stored?.model || env.model || DEFAULT_MODEL;
     }
     if (prompt) {
       prompt.value = cfg.systemPrompt || stored?.systemPrompt || '';

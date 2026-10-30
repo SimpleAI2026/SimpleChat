@@ -166,7 +166,7 @@ import {
 </script>
 <simple-chat
   api-base-url="https://api.openai.com/v1"
-  model="gpt-4o-mini"
+  model="zai-org/GLM-5.3-Flash"
   storage-key="my-app"
   layout="sidebar"
   open

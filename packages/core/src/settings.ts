@@ -35,6 +35,9 @@ export interface ResolvedChatSettings {
 
 /** localStorage key for in-panel settings, scoped by element storage-key. */
 /** Sidebar / host panel width (px). Shared UI chrome, not per-thread. */
+/** Default OpenAI-compatible model id when none is set via host / storage / env. */
+export const DEFAULT_MODEL = 'zai-org/GLM-5.3-Flash';
+
 export const SC_WIDTH_MIN = 320;
 export const SC_WIDTH_MAX = 720;
 export const SC_WIDTH_DEFAULT = 400;
@@ -177,7 +180,7 @@ export function mergeConfigPriority(input: {
     nonEmpty(host.model) ||
     nonEmpty(stored?.model) ||
     nonEmpty(env.model) ||
-    '';
+    DEFAULT_MODEL;
 
   const systemPrompt =
     nonEmpty(host.systemPrompt) || nonEmpty(stored?.systemPrompt) || '';

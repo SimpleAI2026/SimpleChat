@@ -26,6 +26,7 @@ export {
   loadPersistedSettings,
   savePersistedSettings,
   mergeConfigPriority,
+  DEFAULT_MODEL,
   defaultProviderId,
   resolveChatSettings,
   SC_WIDTH_MIN,

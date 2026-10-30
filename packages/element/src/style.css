@@ -902,6 +902,17 @@ a.sc-icon-btn svg {
 }
 
 
+/* ——— Provider picker (settings) ——— */
+.sc-provider-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-space-3);
+}
+
+.sc-provider-grid .sc-theme-option {
+  width: 100%;
+}
+
 /* ——— Theme picker (settings) ——— */
 .sc-theme-grid {
   display: grid;

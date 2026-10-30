@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readEnvDefaults } from '../env.js';
 import {
   mergeConfigPriority,
+  DEFAULT_MODEL,
   settingsStorageKey,
   loadPersistedSettings,
   savePersistedSettings,
@@ -109,6 +110,11 @@ describe('mergeConfigPriority', () => {
     expect(r.apiKey).toBe('stored-key');
     expect(r.model).toBe('env-model');
     expect(r.systemPrompt).toBe('stored prompt');
+  });
+
+  it('falls back to DEFAULT_MODEL when no model is set', () => {
+    const r = mergeConfigPriority({ host: {}, stored: null, env: null });
+    expect(r.model).toBe(DEFAULT_MODEL);
   });
 
   it('prefers host systemPrompt over stored', () => {

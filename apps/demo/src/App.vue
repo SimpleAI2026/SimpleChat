@@ -13,7 +13,7 @@ const STORAGE = 'simplechat-demo-config';
 
 const FALLBACK = {
   apiBaseUrl: 'https://api.siliconflow.cn/v1',
-  model: 'Qwen/Qwen2.5-7B-Instruct',
+  model: 'zai-org/GLM-5.3-Flash',
   systemPrompt:
     '你是简洁有帮助的助手。需要时调用已注册工具。当用户要求「修改样式」或调整侧栏/工具卡片外观时，调用 propose_style_css 把 CSS 写入左侧输入框，不要声称已经生效；提醒用户点击左侧「应用配置」才会生效。优先传 tokens（--sc-primary / --sc-background / --sc-border / --sc-tool-bg 等，不要用 *-color 后缀或 :root）。',
 };
