@@ -18,6 +18,8 @@ function copyExtensionAssets() {
         const src = join(appRoot, name);
         if (existsSync(src)) cpSync(src, join(outDir, name));
       }
+      const iconsSrc = join(rootDir, 'extension/icons');
+      if (existsSync(iconsSrc)) cpSync(iconsSrc, join(outDir, 'icons'), { recursive: true });
     },
   };
 }
