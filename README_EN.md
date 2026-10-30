@@ -2,11 +2,60 @@
 
 English | [中文](./README.md)
 
-A pure front-end, embeddable **OpenAI-compatible** sidebar chat SDK. The host passes `apiBaseUrl` / `apiKey` / `model`, and can `registerTool` so the model calls in-browser host APIs. Default UI is a shadcn-style black-and-white theme.
+**Chrome extension: offline on-device AI chat — simple and convenient.** Powered by Chrome’s built-in **Gemini Nano** (Prompt API). Conversations stay on your device — **no API key, no network required, privacy by default**. Optionally switch to any OpenAI-compatible cloud API.
 
 - Repository: https://github.com/SimpleAI2026/SimpleChat
+- Highlights: **offline chat** · **on-device Gemini Nano** · **zero-config start** · **simple UI**
 
-> Design notes live under [`plan/`](./plan/). This repo implements phases P0–P4 (Core / Web Component / Vue thin wrapper / Demo). Host integration (e.g. SimpleMind) uses a **browser min bundle copy** — **not** Yarn portal / npm link.
+> Design notes live under [`plan/`](./plan/). This repo also ships an embeddable OpenAI-compatible chat SDK (see [Developers / Embed](#developers--embed) below). The primary user-facing entry is the **Chrome extension**.
+
+## Why SimpleChat?
+
+| Highlight | Detail |
+| --- | --- |
+| **Offline chat** | On-device Gemini Nano — works without a network |
+| **No API key** | Nano path never uploads your chat; privacy-friendly |
+| **Simple & convenient** | Install → click the icon → chat; minimal setup |
+| **Cloud optional** | Switch to an OpenAI-compatible API for stronger models or tools |
+| **Chrome 138+** | Extension Prompt API / Gemini Nano needs Chrome **138+** |
+
+## Quick start (Chrome extension)
+
+### Load from source (dev / personal use)
+
+```bash
+yarn install
+yarn build:extension
+# or yarn build:all
+```
+
+1. Open `chrome://extensions`
+2. Enable Developer mode
+3. **Load unpacked** → select `dist-extension` at the repo root
+4. Click the extension icon to open the full-page chat tab
+
+`<simple-chat layout="extension">` keeps a left thread rail, a wider message column (~640–720px bubbles), and the full settings drawer. The close control is hidden in this layout.
+
+### Use Chrome Built-in AI (Gemini Nano)
+
+1. Use **Chrome 138+** and enable the Prompt API / Gemini Nano (per Chrome’s docs).
+2. Open the extension → top-right **⚙ Settings** → provider **Chrome Built-in AI (Gemini Nano)**.
+3. Check status: unavailable / downloadable / downloading % / available; use “Recheck” / “Download model”.
+4. Once Nano is ready, send messages — **no API key needed**.
+
+Notes:
+
+- Nano uses `globalThis.LanguageModel` (Prompt API); inference stays on-device.
+- **Tools are cloud-only** on Nano (v1 skips `registerTool`; UI shows “tools need cloud”).
+- Default: if there is no API key and LanguageModel is available/downloadable, prefer `chrome-ai`.
+- When Nano is not ready, send is blocked with guidance.
+- Web embeds need about Chrome **148+**; **extensions about 138+**.
+
+### Optional: OpenAI-compatible cloud
+
+⚙ → provider **OpenAI-compatible (cloud)**, fill Base URL / API Key / Model. Cloud calls use `host_permissions` (default `https://*/*`).
+
+---
 
 ## Packages
 
@@ -18,7 +67,13 @@ A pure front-end, embeddable **OpenAI-compatible** sidebar chat SDK. The host pa
 | `@simplechat/demo` | Vite demo: config panel + sidebar + sample tools |
 | Chrome extension | `yarn build:extension` → `dist-extension/` full-page `layout="extension"` |
 
-## Quick start
+---
+
+## Developers / Embed
+
+A pure front-end, embeddable **OpenAI-compatible** sidebar chat SDK. The host passes `apiBaseUrl` / `apiKey` / `model`, and can `registerTool` so the model calls in-browser host APIs. Default UI is a shadcn-style black-and-white theme. Host integration (e.g. SimpleMind) uses a **browser min bundle copy** — **not** Yarn portal / npm link. This repo implements phases P0–P4 (Core / Web Component / Vue thin wrapper / Demo).
+
+### Demo quick start
 
 > Packages publish from `packages/*/dist`. After clone: `yarn install && yarn build`.
 
@@ -28,13 +83,7 @@ yarn workspace @simplechat/core test
 yarn workspace @simplechat/demo dev
 ```
 
-Open the local URL shown in the terminal and fill in:
-
-- **API Base URL** (e.g. `https://api.openai.com/v1` or SiliconFlow) — **do not** append `/chat/completions`
-- **API Key**
-- **Model**
-
-You can also open **⚙ Settings** at the top-right of the sidebar to configure inside the component (recommended for hosts such as SimpleMind).
+Open the local URL and fill API Base URL / API Key / Model, or use **⚙ Settings**. You can also use **Chrome Built-in AI** above with no key.
 
 Optionally check “Remember API Key” to store the key in localStorage (XSS risk).
 
@@ -46,27 +95,17 @@ If env vars (or Vite `VITE_*`) are set, empty forms/settings prefill from:
 | API Key | `OPENAI_API_KEY`, `OPENAI_KEY`, `VITE_OPENAI_API_KEY`, `VITE_OPENAI_KEY` |
 | Model | `OPENAI_MODEL`, `MODEL`, `VITE_OPENAI_MODEL`, `VITE_MODEL` |
 
-Example: put `VITE_OPENAI_BASE_URL=…` in `apps/demo/.env`, then `yarn dev`.
+Sample tools: `get_page_title`, `alert_message`, `propose_style_css`.
 
-Sample tools: `get_page_title`, `alert_message`, `propose_style_css` (the model only writes CSS into the left input; the user must click “Apply” for it to take effect).
+### Keyboard isolation (Shadow DOM)
 
+Composer and settings inputs `stopPropagation()` on `keydown` / `keyup` / `keypress` so host document listeners (e.g. Excalidraw) do not steal keys. Enter sends; Shift+Enter newline. Hosts may call `focusComposer()`.
 
-## Chrome Built-in AI (Gemini Nano)
+See root [`AGENTS.md`](./AGENTS.md).
 
-- Settings ⚙ → provider **OpenAI-compatible** or **Chrome Built-in AI (Gemini Nano)**.
-- Nano uses `globalThis.LanguageModel` (Prompt API). No API key. **Tools are cloud-only** on Nano (v1 skips `registerTool`).
-- Status: unavailable / downloadable / downloading % / available; Detect + Download in settings.
-- Default: if no API key and LanguageModel is available/downloadable → prefer `chrome-ai`.
-- Requirements: Chrome **~148+ (web)** or **~138+ (extension)** with Prompt API enabled.
-- If Nano is not ready, send is blocked with guidance.
+### Browser min bundle (host vendor, no npm portal)
 
-## Keyboard isolation (Shadow DOM)
-
-Composer and settings inputs call `stopPropagation()` on `keydown`/`keyup`/`keypress` so host document listeners (e.g. Excalidraw) do not steal keys. Enter sends; Shift+Enter newline. Hosts may call `focusComposer()`.
-
-## Browser min bundle (host vendor, no npm portal)
-
-Hosts such as [SimpleMind](https://github.com/SimpleAI2026/SimpleMind) **must not** Yarn-portal / npm-link this monorepo. Build one minified ESM that registers `<simple-chat>` and exports width helpers:
+Hosts (e.g. [SimpleMind](https://github.com/SimpleAI2026/SimpleMind)) should **not** Yarn-portal / npm-link this monorepo. Build a minified ESM:
 
 ```bash
 yarn build:min
@@ -89,7 +128,7 @@ import {
 
 Styles live inside the element’s Shadow DOM (`defaultStyles`); no separate CSS file is required. SimpleMind wraps `<simple-chat layout="panel">` with a local `src/components/SimpleChatSidebar.js` and has **no** `@simplechat/*` dependency.
 
-### Current SimpleMind integration
+#### Current SimpleMind integration
 
 | Item | Detail |
 | --- | --- |
@@ -100,9 +139,9 @@ Styles live inside the element’s Shadow DOM (`defaultStyles`); no separate CSS
 | Resizable | Left-edge resize handle (~320–720px), synced with `--sc-width`, `localStorage` `simplechat:sidebar-width`, host `--ai-panel-width` |
 | Dependency | **No** npm portal / Yarn link — copy the min file only |
 
-## Embed
+### Embed
 
-### Web Component
+#### Web Component
 
 ```html
 <script type="module">
@@ -125,7 +164,7 @@ Styles live inside the element’s Shadow DOM (`defaultStyles`); no separate CSS
 ></simple-chat>
 ```
 
-### Vue 3 (monorepo package)
+#### Vue 3 (monorepo package)
 
 ```vue
 <script setup>
@@ -141,7 +180,7 @@ import { SimpleChatSidebar } from '@simplechat/vue';
 </template>
 ```
 
-## Config
+### Config
 
 | Field | Meaning |
 | --- | --- |
@@ -153,25 +192,23 @@ import { SimpleChatSidebar } from '@simplechat/vue';
 
 Requests go to: `POST {apiBaseUrl}/chat/completions`.
 
-### `my-` API key (Base64 decrypt)
+#### `my-` API key (Base64 decrypt)
 
 Before each request, `ChatEngine` runs the key through `normalizeSecret`:
 
 - No `my-` prefix: trim and use as-is
 - Starts with `my-`: strip the prefix, decode as **URL-safe Base64** (`-`/`_` → `+`/`/`, pad `=`); on failure fall back to the original string
 
-Useful for storing an encoded value in config instead of plaintext.
-
-### Config precedence
+#### Config precedence
 
 1. Non-empty host props / attrs / `setConfig`
 2. localStorage (`${storageKey}:settings`: always Base URL / Model / system prompt / `themeId` / tool styles / `rememberKey`; key only if “Remember API Key” is checked)
 3. Environment (`readEnvDefaults()`, table above; no systemPrompt)
 4. Empty
 
-`<simple-chat>` top-right **⚙** opens the settings drawer (including **system prompt**). **Save** writes localStorage and `updateConfig` without a reload. Cancel or toggle ⚙ again closes without applying unsaved edits.
+`<simple-chat>` top-right **⚙** opens the settings drawer (including **system prompt**). **Save** writes localStorage and `updateConfig` without a reload.
 
-### System prompt APIs
+#### System prompt APIs
 
 | Method | Usage |
 | --- | --- |
@@ -181,9 +218,7 @@ Useful for storing an encoded value in config instead of plaintext.
 | `setConfig` | `el.setConfig({ systemPrompt: '…' })` |
 | Panel settings | ⚙ → system prompt → Save (emits `sc-settings` with `systemPrompt`) |
 
-Non-empty host values win over localStorage.
-
-## Theme
+### Theme
 
 Ten named themes (`listThemes()` / `getThemeCss(id)`):
 
@@ -200,10 +235,6 @@ Ten named themes (`listThemes()` / `getThemeCss(id)`):
 | `contrast` | High contrast |
 | `terminal` | Terminal |
 
-```vue
-<SimpleChatSidebar theme-id="ocean" />
-```
-
 ```js
 el.setTheme('terminal')
 // or
@@ -212,47 +243,17 @@ el.themeId = 'violet'
 
 Precedence: host `themeCss` / `themeStyle` (highest) → host `themeId` → localStorage `themeId` → `bw`.
 
-⚙ can also edit **tool styles** (`--sc-tool-bg` / border / radius / font-size), persisted with the theme.
-
-Shadow DOM does **not** inherit parent CSS variables; override with:
-
-```vue
-<SimpleChatSidebar
-  theme-id="bw"
-  :theme-style="{ '--sc-primary': '#2563eb' }"
-  :theme-css="':host { --sc-tool-bg: #eef2ff; }'"
-/>
-```
-
-## Resizable sidebar
+### Resizable sidebar
 
 With `layout="sidebar"` / `panel`, drag to resize:
 
 - Constants: `SC_WIDTH_MIN` / `SC_WIDTH_MAX` / `SC_WIDTH_DEFAULT`
-- Persistence: `localStorage` key `simplechat:sidebar-width` (`loadSidebarWidth` / `clampSidebarWidth`)
+- Persistence: `localStorage` key `simplechat:sidebar-width`
 - Event: `sc-resize` (detail includes width)
 
-## Security
+### Security
 
-Holding an API key in the browser is **only for personal / intranet demos**. Production should use a same-origin proxy (`proxyUrl` roadmap, plan P6). “Remember API Key” (demo form or in-component settings) writes localStorage and has XSS risk. `my-` encoding is **not** encryption — only light obfuscation for paste/config.
-
-
-## Chrome extension (full page)
-
-MV3 scaffold similar to SimpleMind: the action icon opens a full-tab app.
-
-```bash
-yarn build:extension
-# or yarn build:all
-```
-
-1. Open `chrome://extensions`
-2. Enable Developer mode
-3. **Load unpacked** → select `dist-extension` at the repo root
-
-`<simple-chat layout="extension">` keeps a left thread rail (not a full-screen overlay by default), a wider message column (~640–720px bubbles), and the full settings drawer (OpenAI / Chrome AI Nano, themes, system prompt, tool style, host slot). The close control is hidden in this layout.
-
-**Chrome version**: Gemini Nano / Prompt API needs **138+** in extensions (about 148+ on the web). Cloud calls use `host_permissions` (default `https://*/*`).
+Holding an API key in the browser is **only for personal / intranet demos**. Production should use a same-origin proxy (`proxyUrl` roadmap, plan P6). “Remember API Key” writes localStorage and has XSS risk. `my-` encoding is **not** encryption. **On-device Nano chat never leaves the device and needs no API key.**
 
 ## License
 
