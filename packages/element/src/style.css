@@ -142,6 +142,10 @@
   display: none !important;
 }
 
+.sc-root[data-layout="extension"] .sc-github-link {
+  display: inline-flex;
+}
+
 .sc-root[data-layout="extension"] .sc-resize-handle {
   display: none !important;
 }
@@ -255,6 +259,22 @@
 .sc-icon-btn:focus-visible {
   outline: 2px solid var(--sc-ring);
   outline-offset: 1px;
+}
+
+a.sc-icon-btn {
+  text-decoration: none;
+  color: inherit;
+}
+
+a.sc-icon-btn svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+/* Open-source GitHub: show mainly in full-page extension header */
+.sc-github-link {
+  display: none;
 }
 
 .sc-thread-name {

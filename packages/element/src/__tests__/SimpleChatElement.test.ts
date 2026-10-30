@@ -263,6 +263,13 @@ describe('layout=extension', () => {
     const style = getComputedStyle(closeBtn);
     expect(style.display).toBe('none');
 
+    const github = el.shadowRoot!.querySelector('a.sc-github-link') as HTMLAnchorElement;
+    expect(github).toBeTruthy();
+    expect(github.href).toBe('https://github.com/SimpleAI2026/SimpleChat');
+    expect(github.target).toBe('_blank');
+    expect(github.rel).toContain('noopener');
+    expect(getComputedStyle(github).display).not.toBe('none');
+
     // Settings still opens with all panels present
     (el.shadowRoot!.querySelector('[data-act="settings"]') as HTMLButtonElement).click();
     const settings = el.shadowRoot!.querySelector('.sc-settings-drawer') as HTMLElement;
