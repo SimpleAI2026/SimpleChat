@@ -9,6 +9,15 @@
 
 > 规划文档见 [`plan/`](./plan/)。本仓库同时提供可嵌入的 OpenAI 兼容聊天 SDK（见下方 [开发者 / 嵌入](#开发者--嵌入)）；面向用户的主入口是 **Chrome 扩展**。
 
+
+## 界面预览
+
+| 全页对话（左列表 + 居中消息） | 设置（云端 / 端侧 Gemini Nano） |
+| :---: | :---: |
+| ![对话界面 640x400](docs/screenshots/extension-chat-warm.png) | ![设置界面 640x400](docs/screenshots/extension-settings.png) |
+
+![森林主题对话 640x400](docs/screenshots/extension-chat-forest.png)
+
 ## 为什么用 SimpleChat？
 
 | 亮点 | 说明 |

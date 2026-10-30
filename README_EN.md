@@ -9,6 +9,15 @@ English | [中文](./README.md)
 
 > Design notes live under [`plan/`](./plan/). This repo also ships an embeddable OpenAI-compatible chat SDK (see [Developers / Embed](#developers--embed) below). The primary user-facing entry is the **Chrome extension**.
 
+
+## Screenshots
+
+| Full-page chat (thread list + messages) | Settings (cloud / on-device Gemini Nano) |
+| :---: | :---: |
+| ![Chat UI 640x400](docs/screenshots/extension-chat-warm.png) | ![Settings UI 640x400](docs/screenshots/extension-settings.png) |
+
+![Forest theme chat 640x400](docs/screenshots/extension-chat-forest.png)
+
 ## Why SimpleChat?
 
 | Highlight | Detail |
