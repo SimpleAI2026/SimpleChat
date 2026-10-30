@@ -19,7 +19,7 @@ export const SimpleChatSidebar = defineComponent({
     config: { type: Object as PropType<Partial<SimpleChatConfig>>, default: () => ({}) },
     tools: { type: Array as PropType<HostTool[]>, default: () => [] },
     storageKey: { type: String, default: 'simplechat' },
-    layout: { type: String as PropType<'sidebar' | 'panel'>, default: 'sidebar' },
+    layout: { type: String as PropType<'sidebar' | 'panel' | 'extension'>, default: 'sidebar' },
     position: { type: String as PropType<'left' | 'right'>, default: 'right' },
     className: { type: String, default: '' },
     themeId: { type: String, default: '' },

@@ -11,10 +11,16 @@
     "build": "yarn workspace @simplechat/core build && yarn workspace @simplechat/element build && yarn workspace @simplechat/vue build && yarn workspace @simplechat/demo build",
     "test": "yarn workspace @simplechat/core test && yarn workspace @simplechat/element test",
     "typecheck": "yarn workspace @simplechat/core typecheck && yarn workspace @simplechat/element typecheck && yarn workspace @simplechat/vue typecheck",
-    "build:min": "node scripts/build-min.mjs"
+    "build:min": "node scripts/build-min.mjs",
+    "build:extension": "yarn workspace @simplechat/extension-app build",
+    "build:all": "yarn build && yarn build:extension"
   },
   "packageManager": "yarn@4.18.0",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2",
+    "vite": "^7.1.11"
   }
 }

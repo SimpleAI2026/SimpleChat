@@ -81,6 +81,71 @@
   --sc-icon-size: 36px;
 }
 
+/* Full-page Chrome extension: left thread rail + wider chat column */
+.sc-root[data-layout="extension"] {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: none;
+  z-index: var(--sc-z-index);
+  --sc-pad: var(--sc-space-4);
+  --sc-msg-col: min(100%, 840px);
+  --sc-bubble-max: 700px;
+  --sc-thread-rail: 260px;
+}
+
+.sc-root[data-layout="extension"] .sc-body {
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.sc-root[data-layout="extension"] .sc-thread-drawer {
+  position: relative;
+  inset: auto;
+  width: var(--sc-thread-rail);
+  flex: 0 0 var(--sc-thread-rail);
+  border-right: 1px solid var(--sc-border);
+  z-index: 1;
+}
+
+.sc-root[data-layout="extension"] .sc-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sc-root[data-layout="extension"] .sc-messages {
+  width: 100%;
+  max-width: var(--sc-msg-col);
+  margin-inline: auto;
+  padding-inline: var(--sc-space-5);
+}
+
+.sc-root[data-layout="extension"] .sc-composer {
+  width: 100%;
+  max-width: var(--sc-msg-col);
+  margin-inline: auto;
+  padding-inline: var(--sc-space-5);
+}
+
+.sc-root[data-layout="extension"] .sc-bubble,
+.sc-root[data-layout="extension"] .sc-msg.assistant .sc-bubble {
+  max-width: min(100%, var(--sc-bubble-max));
+}
+
+.sc-root[data-layout="extension"] .sc-tools {
+  max-width: min(100%, var(--sc-bubble-max));
+}
+
+.sc-root[data-layout="extension"] [data-act="close"] {
+  display: none !important;
+}
+
+.sc-root[data-layout="extension"] .sc-resize-handle {
+  display: none !important;
+}
+
 .sc-root[data-closed="true"] {
   display: none;
 }
@@ -212,6 +277,16 @@
 .sc-body {
   position: relative;
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--sc-background);
+}
+
+.sc-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;

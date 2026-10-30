@@ -240,3 +240,58 @@ describe('custom element registration', () => {
     expect(customElements.get('simple-chat')).toBe(SimpleChatElement);
   });
 });
+
+describe('layout=extension', () => {
+  it('uses full-page layout with persistent thread rail and hides close', () => {
+    const el = mount({ layout: 'extension', open: '' });
+    const root = el.shadowRoot!.querySelector('.sc-root') as HTMLElement;
+    expect(root.dataset.layout).toBe('extension');
+    expect(root.dataset.closed).toBe('false');
+
+    const drawer = el.shadowRoot!.querySelector('.sc-thread-drawer') as HTMLElement;
+    expect(drawer.hidden).toBe(false);
+
+    const main = el.shadowRoot!.querySelector('.sc-main') as HTMLElement;
+    expect(main).toBeTruthy();
+    expect(main.querySelector('.sc-composer')).toBeTruthy();
+    expect(main.querySelector('.sc-messages')).toBeTruthy();
+    expect(main.querySelector('.sc-settings-drawer')).toBeTruthy();
+
+    const closeBtn = el.shadowRoot!.querySelector('[data-act="close"]') as HTMLButtonElement;
+    expect(closeBtn).toBeTruthy();
+    // CSS hides it; attribute still present for non-extension hosts sharing shell.
+    const style = getComputedStyle(closeBtn);
+    expect(style.display).toBe('none');
+
+    // Settings still opens with all panels present
+    (el.shadowRoot!.querySelector('[data-act="settings"]') as HTMLButtonElement).click();
+    const settings = el.shadowRoot!.querySelector('.sc-settings-drawer') as HTMLElement;
+    expect(settings.hidden).toBe(false);
+    expect(settings.querySelector('input[data-field="provider"][value="openai"]')).toBeTruthy();
+    expect(settings.querySelector('input[data-field="provider"][value="chrome-ai"]')).toBeTruthy();
+    expect(settings.querySelector('[data-field="systemPrompt"]')).toBeTruthy();
+    expect(settings.querySelector('[data-field="themeGrid"]')).toBeTruthy();
+    expect(settings.querySelector('[data-field="toolBg"]')).toBeTruthy();
+    expect(settings.querySelector('[data-host-settings]')).toBeTruthy();
+    // Thread rail stays visible while settings overlays main
+    expect(drawer.hidden).toBe(false);
+  });
+
+  it('ignores close action in extension layout', () => {
+    const el = mount({ layout: 'extension', open: '' });
+    const root = el.shadowRoot!.querySelector('.sc-root') as HTMLElement;
+    (el.shadowRoot!.querySelector('[data-act="close"]') as HTMLButtonElement).click();
+    expect(el.open).toBe(true);
+    expect(root.dataset.closed).toBe('false');
+  });
+
+  it('keeps thread rail after selecting a thread', async () => {
+    const el = mount({ layout: 'extension', open: '' });
+    // create a second thread via new, then ensure rail still open
+    (el.shadowRoot!.querySelector('[data-act="new"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      const drawer = el.shadowRoot!.querySelector('.sc-thread-drawer') as HTMLElement;
+      expect(drawer.hidden).toBe(false);
+    });
+  });
+});

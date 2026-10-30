@@ -16,6 +16,7 @@
 | `@simplechat/element` | `<simple-chat>` Web Component（Shadow DOM + `--sc-*`） |
 | `@simplechat/vue` | Vue 3 薄封装 `SimpleChatSidebar`（monorepo 内使用） |
 | `@simplechat/demo` | Vite Demo：配置面板 + 侧栏 + 示例工具 |
+| Chrome 扩展 | `yarn build:extension` → `dist-extension/` 全页 `layout="extension"` |
 
 ## Quick start
 
@@ -236,6 +237,24 @@ Shadow DOM **不会**继承父节点 CSS 变量；额外覆盖请用：
 ## Security
 
 浏览器内持有 API Key **仅适合个人/内网 Demo**。生产请使用同源代理（`proxyUrl` 路线图，见 plan P6）。勾选「记住 API Key」（Demo 表单或组件内设置）会写入 localStorage，存在 XSS 泄露风险。`my-` 编码不是加密，只是传输/粘贴时的轻度混淆。
+
+
+## Chrome 扩展（全页）
+
+与 SimpleMind 类似的 MV3 脚手架：点击扩展图标打开全页标签。
+
+```bash
+yarn build:extension
+# 或 yarn build:all
+```
+
+1. 打开 `chrome://extensions`
+2. 开启「开发者模式」
+3. **加载已解压的扩展程序** → 选择仓库根目录下的 `dist-extension`
+
+`<simple-chat layout="extension">`：左侧常驻会话列表（非默认全屏遮罩）、中间更宽消息列（气泡约 640–720px）、设置抽屉保留全部能力（OpenAI / Chrome AI Nano、主题、系统提示词、工具样式、host slot）。关闭按钮在扩展布局下隐藏。
+
+**Chrome 版本**：Gemini Nano / Prompt API 在**扩展**中需 **138+**（网页约 148+）。云端 API 依赖 `host_permissions`（默认 `https://*/*`）。
 
 ## License
 

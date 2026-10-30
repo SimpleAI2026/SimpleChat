@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "SimpleChat",
+  "version": "0.1.0",
+  "description": "Full-page SimpleChat：OpenAI 兼容云端 + Chrome 内置 Gemini Nano（扩展需 Chrome 138+）。",
+  "action": {
+    "default_title": "SimpleChat",
+    "default_icon": {
+      "16": "favicon.png",
+      "32": "favicon.png",
+      "48": "favicon.png"
+    }
+  },
+  "icons": {
+    "16": "favicon.png",
+    "32": "favicon.png",
+    "48": "favicon.png",
+    "128": "favicon.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ]
+}

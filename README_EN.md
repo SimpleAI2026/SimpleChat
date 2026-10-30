@@ -16,6 +16,7 @@ A pure front-end, embeddable **OpenAI-compatible** sidebar chat SDK. The host pa
 | `@simplechat/element` | `<simple-chat>` Web Component (Shadow DOM + `--sc-*`) |
 | `@simplechat/vue` | Vue 3 thin wrapper `SimpleChatSidebar` (for monorepo use) |
 | `@simplechat/demo` | Vite demo: config panel + sidebar + sample tools |
+| Chrome extension | `yarn build:extension` → `dist-extension/` full-page `layout="extension"` |
 
 ## Quick start
 
@@ -234,6 +235,24 @@ With `layout="sidebar"` / `panel`, drag to resize:
 ## Security
 
 Holding an API key in the browser is **only for personal / intranet demos**. Production should use a same-origin proxy (`proxyUrl` roadmap, plan P6). “Remember API Key” (demo form or in-component settings) writes localStorage and has XSS risk. `my-` encoding is **not** encryption — only light obfuscation for paste/config.
+
+
+## Chrome extension (full page)
+
+MV3 scaffold similar to SimpleMind: the action icon opens a full-tab app.
+
+```bash
+yarn build:extension
+# or yarn build:all
+```
+
+1. Open `chrome://extensions`
+2. Enable Developer mode
+3. **Load unpacked** → select `dist-extension` at the repo root
+
+`<simple-chat layout="extension">` keeps a left thread rail (not a full-screen overlay by default), a wider message column (~640–720px bubbles), and the full settings drawer (OpenAI / Chrome AI Nano, themes, system prompt, tool style, host slot). The close control is hidden in this layout.
+
+**Chrome version**: Gemini Nano / Prompt API needs **138+** in extensions (about 148+ on the web). Cloud calls use `host_permissions` (default `https://*/*`).
 
 ## License
 

@@ -39,7 +39,7 @@ export interface SimpleChatElementProps {
   systemPrompt?: string;
   storageKey?: string;
   position?: 'left' | 'right';
-  layout?: 'sidebar' | 'panel';
+  layout?: 'sidebar' | 'panel' | 'extension';
   open?: boolean;
   themeId?: string;
   themeCss?: string;
@@ -572,6 +572,7 @@ export class SimpleChatElement extends HTMLElement {
             <button type="button" class="sc-danger" data-act="delete">删除当前会话</button>
           </div>
         </div>
+        <div class="sc-main">
         <div class="sc-settings-drawer" hidden>
           <div class="sc-settings-drawer-head">
             <span>设置</span>
@@ -658,7 +659,6 @@ export class SimpleChatElement extends HTMLElement {
         </div>
         <div class="sc-error" hidden></div>
         <div class="sc-messages"></div>
-      </div>
       <div class="sc-composer">
         <div class="sc-composer-card">
           <textarea rows="2" placeholder="输入消息…" aria-label="消息输入"></textarea>
@@ -666,6 +666,8 @@ export class SimpleChatElement extends HTMLElement {
             <div class="sc-hint">Enter 发送 · Shift+Enter 换行</div>
             <button type="button" class="sc-send">发送</button>
           </div>
+        </div>
+      </div>
         </div>
       </div>
     `;
@@ -708,6 +710,7 @@ export class SimpleChatElement extends HTMLElement {
         void this.downloadChromeAiModel();
       }
       if (act === 'close') {
+        if (this.isExtensionLayout()) return;
         this.open = false;
         this.dispatchEvent(new CustomEvent('sc-close', { bubbles: true, composed: true }));
       }
@@ -844,10 +847,15 @@ export class SimpleChatElement extends HTMLElement {
     return next;
   }
 
+  private isExtensionLayout(): boolean {
+    return (this.getAttribute('layout') || '') === 'extension';
+  }
+
   private applyLayout(): void {
     if (!this.rootEl) return;
     const layout = this.getAttribute('layout') || 'sidebar';
     this.rootEl.dataset.layout = layout;
+    // Only sidebar uses open/closed hide; extension stays full-page (default open).
     const closed = !this.open && layout === 'sidebar';
     this.rootEl.dataset.closed = closed ? 'true' : 'false';
     const pos = this.getAttribute('position') || 'right';
@@ -863,6 +871,19 @@ export class SimpleChatElement extends HTMLElement {
         this.rootEl.style.borderLeft = '1px solid var(--sc-border)';
         this.rootEl.style.borderRight = 'none';
       }
+    } else {
+      this.rootEl.style.insetInlineEnd = '';
+      this.rootEl.style.insetInlineStart = '';
+      this.rootEl.style.borderLeft = '';
+      this.rootEl.style.borderRight = '';
+    }
+    if (layout === 'extension') {
+      // Persistent left thread rail (not full-screen overlay by default).
+      this.showThreads = true;
+      if (this.drawerEl) this.drawerEl.hidden = false;
+      if (this.resizeHandleEl) this.resizeHandleEl.hidden = true;
+    } else if (this.resizeHandleEl) {
+      this.resizeHandleEl.hidden = false;
     }
     this.syncResizeHandleSide();
   }
@@ -986,8 +1007,10 @@ export class SimpleChatElement extends HTMLElement {
   }
 
   private openSettings(): void {
-    this.showThreads = false;
-    this.drawerEl.hidden = true;
+    if (!this.isExtensionLayout()) {
+      this.showThreads = false;
+      this.drawerEl.hidden = true;
+    }
     this.showSettings = true;
     this.settingsEl.hidden = false;
     this.fillSettingsForm();
@@ -1178,8 +1201,13 @@ export class SimpleChatElement extends HTMLElement {
     this.renderError();
     await this.engine!.createThread();
     this.messages = [];
-    this.showThreads = false;
-    this.drawerEl.hidden = true;
+    if (this.isExtensionLayout()) {
+      this.showThreads = true;
+      this.drawerEl.hidden = false;
+    } else {
+      this.showThreads = false;
+      this.drawerEl.hidden = true;
+    }
     this.closeSettings(false);
     this.renderMessages();
     await this.loadThreads();
@@ -1189,8 +1217,13 @@ export class SimpleChatElement extends HTMLElement {
     await this.engine!.selectThread(id);
     this.messages = await this.engine!.getMessages(id);
     this.pendingTools.clear();
-    this.showThreads = false;
-    this.drawerEl.hidden = true;
+    if (this.isExtensionLayout()) {
+      this.showThreads = true;
+      this.drawerEl.hidden = false;
+    } else {
+      this.showThreads = false;
+      this.drawerEl.hidden = true;
+    }
     this.closeSettings(false);
     this.renderMessages();
     this.renderThreads();

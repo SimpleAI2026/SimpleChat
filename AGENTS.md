@@ -10,6 +10,7 @@
 | `@simplechat/element` | `packages/element` | `<simple-chat>` Web Component（Shadow DOM + `--sc-*`） |
 | `@simplechat/vue` | `packages/vue` | Vue 3 薄封装 `SimpleChatSidebar`（monorepo 内） |
 | `@simplechat/demo` | `apps/demo` | Vite Demo |
+| extension host | `apps/extension` + `extension/` | Chrome MV3 全页扩展（`layout="extension"`） |
 
 ## Yarn 命令
 
@@ -20,6 +21,8 @@ yarn test                  # core + element（门禁：通过率 ≥95%）
 yarn typecheck
 yarn build:min             # → dist/simplechat.min.js；默认可拷贝到兄弟仓库 SimpleMind vendor
 yarn build:min --no-copy   # 只写 dist/
+yarn build:extension       # → dist-extension/（Chrome Load unpacked）
+yarn build:all             # build + build:extension
 yarn workspace @simplechat/demo dev
 ```
 
@@ -61,3 +64,11 @@ yarn build:min --no-copy
 ## 中文友好
 
 仓库 README / 注释 / UI 文案以中文为主或中英双语；新增用户可见文案优先中文。
+
+## Chrome 扩展（全页）
+
+- 构建：`yarn build:extension` → `dist-extension/`
+- 加载：`chrome://extensions` → 开发者模式 → **加载已解压的扩展程序** → 选 `dist-extension`
+- 点击扩展图标会打开/聚焦全页标签（`layout="extension"`：左侧会话轨 + 更宽气泡）
+- **Gemini Nano**：扩展侧需 **Chrome 138+** 并启用 Prompt API；网页嵌入约 148+
+- `host_permissions` 含 `https://*/*` 以便云端 OpenAI 兼容 API；本地调试另含 localhost

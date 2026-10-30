@@ -675,6 +675,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@simplechat/extension-app@workspace:apps/extension":
+  version: 0.0.0-use.local
+  resolution: "@simplechat/extension-app@workspace:apps/extension"
+  dependencies:
+    "@simplechat/core": "workspace:*"
+    "@simplechat/element": "workspace:*"
+    typescript: "npm:^5.8.2"
+    vite: "npm:^7.1.11"
+  languageName: unknown
+  linkType: soft
+
 "@simplechat/vue@workspace:*, @simplechat/vue@workspace:packages/vue":
   version: 0.0.0-use.local
   resolution: "@simplechat/vue@workspace:packages/vue"
@@ -1835,6 +1846,9 @@ __metadata:
 "simplechat@workspace:.":
   version: 0.0.0-use.local
   resolution: "simplechat@workspace:."
+  dependencies:
+    typescript: "npm:^5.8.2"
+    vite: "npm:^7.1.11"
   languageName: unknown
   linkType: soft
 
