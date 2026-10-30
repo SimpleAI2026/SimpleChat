@@ -8,6 +8,7 @@ export type {
   ToolContext,
   HistoryStore,
   Role,
+  ChatProviderId,
 } from './types.js';
 export {
   createId,
@@ -25,6 +26,7 @@ export {
   loadPersistedSettings,
   savePersistedSettings,
   mergeConfigPriority,
+  defaultProviderId,
   resolveChatSettings,
   SC_WIDTH_MIN,
   SC_WIDTH_MAX,
@@ -55,3 +57,21 @@ export {
 export { parseToolArguments, extractBrokenCssField } from './parseToolArgs.js';
 
 export { normalizeSecret } from './normalizeSecret.js';
+
+export {
+  OpenAICompatProvider,
+  ChromeAiProvider,
+  chromeAiProviderSingleton,
+  checkChromeAiAvailability,
+  shouldPreferChromeAi,
+  isLanguageModelPresent,
+  messagesToPrompt,
+  CHROME_AI_STATUS,
+  isChatProviderId,
+  type ChatProvider,
+  type ChromeAiStatus,
+  type ChromeAiAvailability,
+  type OpenAICompatMessage,
+  type ProviderStreamEvent,
+  type ProviderStreamRequest,
+} from './providers/index.js';

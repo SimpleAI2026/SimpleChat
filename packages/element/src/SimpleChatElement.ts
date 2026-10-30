@@ -17,12 +17,17 @@ import {
   saveSidebarWidth,
   clampSidebarWidth,
   SC_WIDTH_DEFAULT,
+  checkChromeAiAvailability,
+  CHROME_AI_STATUS,
+  isChatProviderId,
   type ChatMessage,
   type ChatThread,
   type HostTool,
   type PersistedSettings,
   type SimpleChatConfig,
   type ToolStyleOverrides,
+  type ChatProviderId,
+  type ChromeAiStatus,
 } from '@simplechat/core';
 import { defaultStyles } from './styles.js';
 import { renderMarkdown } from './markdown.js';
@@ -79,6 +84,11 @@ export class SimpleChatElement extends HTMLElement {
   private showThreads = false;
   private showSettings = false;
   private settingsRememberKey = false;
+  private _provider: ChatProviderId | '' = '';
+  private chromeAiStatus: ChromeAiStatus = CHROME_AI_STATUS.UNKNOWN;
+  private chromeAiProgress = 0;
+  private chromeAiChecking = false;
+  private chromeAiDownloading = false;
   private suppressAttrSync = false;
   private messages: ChatMessage[] = [];
   private threads: ChatThread[] = [];
@@ -250,6 +260,9 @@ export class SimpleChatElement extends HTMLElement {
   setConfig(cfg: Partial<SimpleChatConfig>): void {
     if (cfg.apiKey != null) this._apiKey = cfg.apiKey;
     if (cfg.systemPrompt != null) this._systemPrompt = cfg.systemPrompt;
+    if (cfg.provider != null && isChatProviderId(cfg.provider)) {
+      this._provider = cfg.provider;
+    }
     // Host may also set api-base-url / model attributes; merge non-empty into engine.
     this.ensureEngine();
     const resolved = this.resolveConfig();
@@ -299,6 +312,34 @@ export class SimpleChatElement extends HTMLElement {
     this.attachHostSettingsSlot();
   }
 
+  /** Focus the composer textarea (host may call after opening the panel). */
+  focusComposer(): void {
+    this.textarea?.focus();
+  }
+
+  /**
+   * Stop key events from bubbling to the host document (e.g. Excalidraw
+   * shortcuts). Capture+bubble on composer and settings inputs.
+   */
+  private isolateKeyboard(el: HTMLElement | null | undefined): void {
+    if (!el) return;
+    const stop = (e: Event) => {
+      e.stopPropagation();
+    };
+    for (const type of ['keydown', 'keyup', 'keypress'] as const) {
+      el.addEventListener(type, stop);
+    }
+  }
+
+  private wireKeyboardIsolation(): void {
+    this.isolateKeyboard(this.textarea);
+    if (!this.settingsEl) return;
+    const fields = this.settingsEl.querySelectorAll(
+      'input, textarea, select, [contenteditable="true"]',
+    );
+    fields.forEach((el) => this.isolateKeyboard(el as HTMLElement));
+  }
+
   private attachHostSettingsSlot(): void {
     const slot =
       this.hostSettingsSlotEl ||
@@ -345,14 +386,19 @@ export class SimpleChatElement extends HTMLElement {
   /** Raw host attrs/props (may be empty). */
   private hostConfigFromAttrs(): Pick<
     SimpleChatConfig,
-    'apiBaseUrl' | 'apiKey' | 'model' | 'systemPrompt'
+    'apiBaseUrl' | 'apiKey' | 'model' | 'systemPrompt' | 'provider'
   > {
+    const attrProvider = this.getAttribute('provider') || '';
+    const provider =
+      (isChatProviderId(this._provider) ? this._provider : undefined) ||
+      (isChatProviderId(attrProvider) ? attrProvider : undefined);
     return {
       apiBaseUrl: this.getAttribute('api-base-url') || '',
       apiKey: this._apiKey,
       model: this.getAttribute('model') || '',
       // Prefer explicit property, then attribute (do not invent from storage here).
       systemPrompt: this._systemPrompt || this.getAttribute('system-prompt') || '',
+      provider,
     };
   }
 
@@ -375,11 +421,16 @@ export class SimpleChatElement extends HTMLElement {
       this._systemPrompt = merged.systemPrompt;
     }
 
+    if (!this._provider && merged.provider) {
+      this._provider = merged.provider;
+    }
+
     return {
       apiBaseUrl: merged.apiBaseUrl,
       apiKey: this._apiKey || merged.apiKey,
       model: merged.model,
       systemPrompt: this._systemPrompt || merged.systemPrompt || undefined,
+      provider: (isChatProviderId(this._provider) ? this._provider : undefined) || merged.provider,
     };
   }
 
@@ -530,6 +581,32 @@ export class SimpleChatElement extends HTMLElement {
             </div>
           </div>
           <div class="sc-settings-form">
+            <div class="sc-section-title">模型提供方</div>
+            <div class="sc-provider-grid" role="radiogroup" aria-label="模型提供方">
+              <label class="sc-theme-option">
+                <input type="radio" name="sc-provider" data-field="provider" value="openai" />
+                <span>OpenAI 兼容（云端）</span>
+              </label>
+              <label class="sc-theme-option">
+                <input type="radio" name="sc-provider" data-field="provider" value="chrome-ai" />
+                <span>Chrome 内置 AI（Gemini Nano）</span>
+              </label>
+            </div>
+            <div class="sc-chrome-ai-panel" data-chrome-ai-panel hidden>
+              <p class="sc-builtin-ai-title">Gemini Nano 状态</p>
+              <div class="sc-builtin-ai-status">
+                <span class="sc-builtin-ai-dot" data-chrome-ai-dot aria-hidden="true"></span>
+                <span data-chrome-ai-label>检测中…</span>
+              </div>
+              <div class="sc-builtin-ai-progress" data-chrome-ai-progress hidden></div>
+              <p class="sc-builtin-ai-hint" data-chrome-ai-hint>需 Chrome 148+（网页）或 138+（扩展）且启用 Prompt API。Nano 路径不支持工具调用（工具需云端）。</p>
+              <p class="sc-builtin-ai-hint sc-tools-warn" data-chrome-ai-tools-warn hidden>已注册宿主工具：当前为 Nano，发送时将跳过工具（工具需云端 OpenAI 兼容通道）。</p>
+              <div class="sc-builtin-ai-actions">
+                <button type="button" class="sc-btn-ghost" data-act="chrome-ai-detect">重新检测</button>
+                <button type="button" class="sc-btn-primary" data-act="chrome-ai-download" hidden>下载模型</button>
+              </div>
+            </div>
+            <div class="sc-openai-fields" data-openai-fields>
             <label class="sc-field">
               <span class="sc-field-label">Base URL</span>
               <input type="url" data-field="apiBaseUrl" placeholder="https://api.openai.com/v1" autocomplete="off" spellcheck="false" />
@@ -546,6 +623,7 @@ export class SimpleChatElement extends HTMLElement {
               <span class="sc-field-label">Model</span>
               <input type="text" data-field="model" placeholder="model id" autocomplete="off" spellcheck="false" />
             </label>
+            </div>
             <label class="sc-field">
               <span class="sc-field-label">系统提示词</span>
               <textarea data-field="systemPrompt" rows="4" placeholder="可选：系统提示词" spellcheck="false"></textarea>
@@ -623,6 +701,12 @@ export class SimpleChatElement extends HTMLElement {
       if (act === 'settings-save') {
         this.saveSettings();
       }
+      if (act === 'chrome-ai-detect') {
+        void this.refreshChromeAiStatus();
+      }
+      if (act === 'chrome-ai-download') {
+        void this.downloadChromeAiModel();
+      }
       if (act === 'close') {
         this.open = false;
         this.dispatchEvent(new CustomEvent('sc-close', { bubbles: true, composed: true }));
@@ -641,9 +725,20 @@ export class SimpleChatElement extends HTMLElement {
     });
 
     this.textarea.addEventListener('keydown', (e) => {
+      // Isolation also via wireKeyboardIsolation; keep Enter→send / Shift+Enter newline.
+      e.stopPropagation();
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (!this.streaming) void this.handleSend();
+      }
+    });
+    this.wireKeyboardIsolation();
+
+    // Provider radio toggles Nano / OpenAI panels
+    this.settingsEl.addEventListener('change', (e) => {
+      const t = e.target as HTMLInputElement;
+      if (t?.matches?.('input[data-field="provider"]')) {
+        this.applyProviderPanelVisibility(t.value as ChatProviderId);
       }
     });
 
@@ -896,6 +991,8 @@ export class SimpleChatElement extends HTMLElement {
     this.showSettings = true;
     this.settingsEl.hidden = false;
     this.fillSettingsForm();
+    this.wireKeyboardIsolation();
+    void this.refreshChromeAiStatus();
   }
 
   private closeSettings(_apply: boolean): void {
@@ -934,6 +1031,18 @@ export class SimpleChatElement extends HTMLElement {
     if (remember) {
       remember.checked = stored == null ? true : stored.rememberKey === true;
     }
+
+    const provider =
+      (isChatProviderId(cfg.provider) ? cfg.provider : null) ||
+      (isChatProviderId(stored?.provider) ? stored!.provider! : null) ||
+      'openai';
+    this.settingsEl
+      .querySelectorAll('input[data-field="provider"]')
+      .forEach((el) => {
+        const input = el as HTMLInputElement;
+        input.checked = input.value === provider;
+      });
+    this.applyProviderPanelVisibility(provider);
 
     const themeId = this.resolveActiveThemeId();
     this.renderThemeOptions(themeId);
@@ -991,6 +1100,12 @@ export class SimpleChatElement extends HTMLElement {
       '[data-field="rememberKey"]',
     ) as HTMLInputElement | null;
     const rememberKey = !!rememberEl?.checked;
+    const providerChecked = this.settingsEl.querySelector(
+      'input[data-field="provider"]:checked',
+    ) as HTMLInputElement | null;
+    const provider: ChatProviderId = isChatProviderId(providerChecked?.value)
+      ? providerChecked!.value
+      : 'openai';
     const themeChecked = this.settingsEl.querySelector(
       'input[data-field="themeId"]:checked',
     ) as HTMLInputElement | null;
@@ -1011,6 +1126,7 @@ export class SimpleChatElement extends HTMLElement {
       apiKey: rememberKey ? apiKey : undefined,
       themeId,
       toolStyle,
+      provider,
     };
     savePersistedSettings(this.storageKeyValue(), toSave);
     this.settingsRememberKey = rememberKey;
@@ -1031,6 +1147,7 @@ export class SimpleChatElement extends HTMLElement {
     }
     this._apiKey = apiKey;
     this._systemPrompt = systemPrompt;
+    this._provider = provider;
 
     this.ensureEngine();
     this.engine?.updateConfig({
@@ -1038,6 +1155,7 @@ export class SimpleChatElement extends HTMLElement {
       apiKey,
       model,
       systemPrompt,
+      provider,
     });
     this.rebuildThemeLayers();
 
@@ -1048,7 +1166,7 @@ export class SimpleChatElement extends HTMLElement {
       new CustomEvent('sc-settings', {
         bubbles: true,
         composed: true,
-        detail: { apiBaseUrl: base, model, systemPrompt, rememberKey, themeId, toolStyle },
+        detail: { apiBaseUrl: base, model, systemPrompt, rememberKey, themeId, toolStyle, provider },
       }),
     );
   }
@@ -1097,11 +1215,34 @@ export class SimpleChatElement extends HTMLElement {
     if (!text || this.streaming) return;
     this.ensureEngine();
     const cfg = this.resolveConfig();
-    if (!cfg.apiBaseUrl || !cfg.apiKey || !cfg.model) {
+    const provider = cfg.provider || 'openai';
+
+    if (provider === 'chrome-ai') {
+      const avail = await checkChromeAiAvailability();
+      this.chromeAiStatus = avail.status;
+      this.syncChromeAiPanel();
+      if (avail.status !== CHROME_AI_STATUS.AVAILABLE) {
+        if (avail.status === CHROME_AI_STATUS.DOWNLOADABLE) {
+          this.errorText =
+            'Gemini Nano 尚未下载。请打开 ⚙ 设置 → 下载模型，或改用 OpenAI 兼容云端。';
+        } else if (avail.status === CHROME_AI_STATUS.DOWNLOADING) {
+          this.errorText = 'Gemini Nano 正在下载，请稍候再发送。';
+        } else {
+          this.errorText =
+            'Chrome 内置 AI 不可用（需 Chrome 148+ 网页 / 138+ 扩展，并启用 Prompt API）。可改用 OpenAI 兼容云端。';
+        }
+        this.renderError();
+        return;
+      }
+      this.engine?.updateConfig({ ...cfg, provider: 'chrome-ai' });
+    } else if (!cfg.apiBaseUrl || !cfg.apiKey || !cfg.model) {
       this.errorText = '请先配置 API Base URL、API Key 与 Model';
       this.renderError();
       return;
+    } else {
+      this.engine?.updateConfig({ ...cfg, provider: 'openai' });
     }
+
     this.errorText = '';
     this.renderError();
     this.textarea.value = '';
@@ -1112,6 +1253,111 @@ export class SimpleChatElement extends HTMLElement {
     }
     this.streaming = false;
     this.updateSendBtn();
+  }
+
+  private applyProviderPanelVisibility(provider: ChatProviderId): void {
+    const nano = this.settingsEl?.querySelector(
+      '[data-chrome-ai-panel]',
+    ) as HTMLElement | null;
+    const openai = this.settingsEl?.querySelector(
+      '[data-openai-fields]',
+    ) as HTMLElement | null;
+    if (nano) nano.hidden = provider !== 'chrome-ai';
+    if (openai) openai.hidden = provider === 'chrome-ai';
+    const warn = this.settingsEl?.querySelector(
+      '[data-chrome-ai-tools-warn]',
+    ) as HTMLElement | null;
+    if (warn) {
+      const hasTools = (this.engine?.tools.list().length ?? 0) > 0;
+      warn.hidden = !(provider === 'chrome-ai' && hasTools);
+    }
+  }
+
+  private syncChromeAiPanel(): void {
+    const panel = this.settingsEl?.querySelector('[data-chrome-ai-panel]');
+    if (!panel) return;
+    const status = this.chromeAiStatus || CHROME_AI_STATUS.UNKNOWN;
+    const dot = panel.querySelector('[data-chrome-ai-dot]') as HTMLElement | null;
+    const label = panel.querySelector('[data-chrome-ai-label]') as HTMLElement | null;
+    const progress = panel.querySelector(
+      '[data-chrome-ai-progress]',
+    ) as HTMLElement | null;
+    const download = panel.querySelector(
+      '[data-act="chrome-ai-download"]',
+    ) as HTMLButtonElement | null;
+    const detect = panel.querySelector(
+      '[data-act="chrome-ai-detect"]',
+    ) as HTMLButtonElement | null;
+
+    if (dot) dot.className = `sc-builtin-ai-dot status-${status}`;
+    const labels: Record<string, string> = {
+      unknown: '未知',
+      unavailable: '不可用',
+      downloadable: '可下载',
+      downloading: '下载中',
+      available: '可用',
+    };
+    if (label) {
+      label.textContent = this.chromeAiChecking
+        ? '检测中…'
+        : labels[status] || status;
+    }
+    if (progress) {
+      if (status === CHROME_AI_STATUS.DOWNLOADING || this.chromeAiDownloading) {
+        progress.hidden = false;
+        progress.textContent = `${Math.round((this.chromeAiProgress || 0) * 100)}%`;
+      } else {
+        progress.hidden = true;
+      }
+    }
+    if (download) {
+      const show =
+        status === CHROME_AI_STATUS.DOWNLOADABLE ||
+        status === CHROME_AI_STATUS.DOWNLOADING ||
+        this.chromeAiDownloading;
+      download.hidden = !show;
+      download.disabled =
+        status === CHROME_AI_STATUS.DOWNLOADING || this.chromeAiDownloading;
+    }
+    if (detect) detect.disabled = this.chromeAiChecking;
+  }
+
+  private async refreshChromeAiStatus(): Promise<void> {
+    this.chromeAiChecking = true;
+    this.syncChromeAiPanel();
+    try {
+      const avail = await checkChromeAiAvailability();
+      this.chromeAiStatus = avail.status;
+    } finally {
+      this.chromeAiChecking = false;
+      this.syncChromeAiPanel();
+    }
+  }
+
+  private async downloadChromeAiModel(): Promise<void> {
+    this.ensureEngine();
+    const provider = this.engine!.getChromeAiProvider();
+    this.chromeAiDownloading = true;
+    this.chromeAiStatus = CHROME_AI_STATUS.DOWNLOADING;
+    this.chromeAiProgress = 0;
+    provider.setOnDownloadProgress((loaded) => {
+      this.chromeAiProgress = loaded;
+      this.syncChromeAiPanel();
+    });
+    this.syncChromeAiPanel();
+    try {
+      await provider.ensureSession();
+      this.chromeAiStatus = CHROME_AI_STATUS.AVAILABLE;
+      this.chromeAiProgress = 1;
+    } catch (err) {
+      this.chromeAiStatus = CHROME_AI_STATUS.UNAVAILABLE;
+      this.errorText =
+        err instanceof Error ? err.message : '下载 Gemini Nano 失败';
+      this.renderError();
+    } finally {
+      this.chromeAiDownloading = false;
+      this.syncChromeAiPanel();
+    }
   }
 }
 

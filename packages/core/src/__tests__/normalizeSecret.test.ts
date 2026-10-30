@@ -61,10 +61,10 @@ describe('normalizeSecret', () => {
 
   it('uses Buffer when atob is unavailable', () => {
     const originalAtob = globalThis.atob;
-    // @ts-expect-error intentional
-    globalThis.atob = undefined;
+    (globalThis as { atob?: typeof atob }).atob = undefined;
     try {
-      const encoded = Buffer.from('from-buffer').toString('base64');
+      const Buf = (globalThis as { Buffer?: { from: (s: string) => { toString: (e: string) => string } } }).Buffer;
+      const encoded = Buf!.from('from-buffer').toString('base64');
       expect(normalizeSecret(`my-${encoded}`)).toBe('from-buffer');
     } finally {
       globalThis.atob = originalAtob;
@@ -74,9 +74,7 @@ describe('normalizeSecret', () => {
   it('returns the original my- secret when neither atob nor Buffer can decode', () => {
     const originalAtob = globalThis.atob;
     const originalBuffer = (globalThis as { Buffer?: unknown }).Buffer;
-    // @ts-expect-error intentional
-    globalThis.atob = undefined;
-    // @ts-expect-error intentional
+    (globalThis as { atob?: typeof atob }).atob = undefined;
     delete (globalThis as { Buffer?: unknown }).Buffer;
     try {
       expect(normalizeSecret('my-abc')).toBe('my-abc');

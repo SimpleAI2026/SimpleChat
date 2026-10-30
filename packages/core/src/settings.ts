@@ -2,6 +2,9 @@ import type { EnvDefaults } from './env.js';
 import { readEnvDefaults } from './env.js';
 import type { ToolStyleOverrides } from './themes.js';
 import { DEFAULT_THEME_ID, isThemeId } from './themes.js';
+import type { ChatProviderId } from './providers/types.js';
+import { isChatProviderId } from './providers/types.js';
+import { isLanguageModelPresent } from './providers/ChromeAiProvider.js';
 
 /** Persisted OpenAI-compatible settings (scoped by storage-key). */
 export interface PersistedSettings {
@@ -15,6 +18,8 @@ export interface PersistedSettings {
   themeId?: string;
   /** Tool card style overrides. */
   toolStyle?: ToolStyleOverrides;
+  /** openai (cloud) | chrome-ai (Gemini Nano). */
+  provider?: ChatProviderId;
 }
 
 export interface ResolvedChatSettings {
@@ -25,6 +30,7 @@ export interface ResolvedChatSettings {
   rememberKey: boolean;
   themeId: string;
   toolStyle: ToolStyleOverrides;
+  provider: ChatProviderId;
 }
 
 /** localStorage key for in-panel settings, scoped by element storage-key. */
@@ -91,6 +97,7 @@ export function savePersistedSettings(
       systemPrompt: settings.systemPrompt ?? '',
       rememberKey: !!settings.rememberKey,
       themeId: isThemeId(settings.themeId) ? settings.themeId : DEFAULT_THEME_ID,
+      provider: isChatProviderId(settings.provider) ? settings.provider : undefined,
     };
     if (payload.rememberKey && settings.apiKey) {
       payload.apiKey = settings.apiKey;
@@ -122,6 +129,23 @@ function nonEmpty(v: unknown): string {
  * 3. Environment defaults (Base URL / Key / Model only)
  * 4. Empty
  */
+/**
+ * Sync default provider: if no explicit provider and no apiKey and LanguageModel
+ * is present, prefer chrome-ai (availability refined async in UI).
+ */
+export function defaultProviderId(opts: {
+  hostProvider?: string | null;
+  storedProvider?: string | null;
+  apiKey: string;
+}): ChatProviderId {
+  if (isChatProviderId(opts.hostProvider)) return opts.hostProvider;
+  if (isChatProviderId(opts.storedProvider)) return opts.storedProvider;
+  if (!String(opts.apiKey || '').trim() && isLanguageModelPresent()) {
+    return 'chrome-ai';
+  }
+  return 'openai';
+}
+
 export function mergeConfigPriority(input: {
   host?: Partial<{
     apiBaseUrl?: string;
@@ -129,6 +153,7 @@ export function mergeConfigPriority(input: {
     model?: string;
     systemPrompt?: string;
     themeId?: string;
+    provider?: ChatProviderId | string;
   }>;
   stored?: PersistedSettings | null;
   env?: EnvDefaults | null;
@@ -168,6 +193,12 @@ export function mergeConfigPriority(input: {
 
   const toolStyle: ToolStyleOverrides = { ...(stored?.toolStyle || {}) };
 
+  const provider = defaultProviderId({
+    hostProvider: nonEmpty(host.provider),
+    storedProvider: nonEmpty(stored?.provider),
+    apiKey,
+  });
+
   return {
     apiBaseUrl,
     apiKey,
@@ -176,6 +207,7 @@ export function mergeConfigPriority(input: {
     rememberKey,
     themeId,
     toolStyle,
+    provider,
   };
 }
 
@@ -188,6 +220,7 @@ export function resolveChatSettings(
     model?: string;
     systemPrompt?: string;
     themeId?: string;
+    provider?: ChatProviderId | string;
   }>,
 ): ResolvedChatSettings {
   return mergeConfigPriority({

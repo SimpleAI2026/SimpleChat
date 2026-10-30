@@ -49,6 +49,20 @@ Example: put `VITE_OPENAI_BASE_URL=…` in `apps/demo/.env`, then `yarn dev`.
 
 Sample tools: `get_page_title`, `alert_message`, `propose_style_css` (the model only writes CSS into the left input; the user must click “Apply” for it to take effect).
 
+
+## Chrome Built-in AI (Gemini Nano)
+
+- Settings ⚙ → provider **OpenAI-compatible** or **Chrome Built-in AI (Gemini Nano)**.
+- Nano uses `globalThis.LanguageModel` (Prompt API). No API key. **Tools are cloud-only** on Nano (v1 skips `registerTool`).
+- Status: unavailable / downloadable / downloading % / available; Detect + Download in settings.
+- Default: if no API key and LanguageModel is available/downloadable → prefer `chrome-ai`.
+- Requirements: Chrome **~148+ (web)** or **~138+ (extension)** with Prompt API enabled.
+- If Nano is not ready, send is blocked with guidance.
+
+## Keyboard isolation (Shadow DOM)
+
+Composer and settings inputs call `stopPropagation()` on `keydown`/`keyup`/`keypress` so host document listeners (e.g. Excalidraw) do not steal keys. Enter sends; Shift+Enter newline. Hosts may call `focusComposer()`.
+
 ## Browser min bundle (host vendor, no npm portal)
 
 Hosts such as [SimpleMind](https://github.com/SimpleAI2026/SimpleMind) **must not** Yarn-portal / npm-link this monorepo. Build one minified ESM that registers `<simple-chat>` and exports width helpers:

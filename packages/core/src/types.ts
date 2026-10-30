@@ -1,3 +1,7 @@
+import type { ChatProviderId } from './providers/types.js';
+
+export type { ChatProviderId } from './providers/types.js';
+
 export interface SimpleChatConfig {
   /** OpenAI-compatible base URL without trailing /chat/completions */
   apiBaseUrl: string;
@@ -11,6 +15,11 @@ export interface SimpleChatConfig {
   maxMessages?: number;
   /** Max tool-call rounds per user turn (default 5) */
   maxToolRounds?: number;
+  /**
+   * Chat backend: `openai` (cloud, tools OK) or `chrome-ai` (Gemini Nano, no tools).
+   * Default resolved in settings merge / element.
+   */
+  provider?: ChatProviderId;
 }
 
 export interface ChatThread {

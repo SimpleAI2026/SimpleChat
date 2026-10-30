@@ -49,6 +49,22 @@ yarn workspace @simplechat/demo dev
 
 示例工具：`get_page_title`、`alert_message`、`propose_style_css`（AI 只把 CSS 写入左侧输入框，需用户点「应用配置」才生效）。
 
+
+## Chrome 内置 AI（Gemini Nano）
+
+- 设置 ⚙ → 提供方可选 **OpenAI 兼容（云端）** 或 **Chrome 内置 AI（Gemini Nano）**。
+- Nano 走 `globalThis.LanguageModel`（Prompt API），无需 API Key。**工具调用仅云端**（Nano 路径 v1 跳过 `registerTool`，UI 提示「工具需云端」）。
+- 状态：不可用 / 可下载 / 下载中 % / 可用；设置内可「重新检测」「下载模型」。
+- 默认：无 API Key 且 LanguageModel 可用/可下载时优先 `chrome-ai`。
+- 要求：Chrome **约 148+（网页）** 或 **约 138+（扩展）**，并启用 Prompt API。
+- Nano 未就绪时阻止发送并给出引导。
+
+## 键盘隔离（Shadow DOM）
+
+composer 与设置输入在 `keydown` / `keyup` / `keypress` 上 `stopPropagation()`，避免宿主 document 监听（如 Excalidraw）吞键。Enter 发送，Shift+Enter 换行。宿主可调用 `focusComposer()`。
+
+详见根目录 [`AGENTS.md`](./AGENTS.md)。
+
 ## Browser min bundle（宿主 vendor，无 npm portal）
 
 宿主（例如 [SimpleMind](https://github.com/SimpleAI2026/SimpleMind)）**不应** Yarn-portal / npm-link 本 monorepo。请构建一份压缩 ESM，注册 `<simple-chat>` 并导出宽度工具：

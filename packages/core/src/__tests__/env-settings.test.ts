@@ -89,6 +89,7 @@ describe('mergeConfigPriority', () => {
       rememberKey: true,
       themeId: 'bw',
       toolStyle: {},
+      provider: 'openai',
     });
   });
 
@@ -182,5 +183,38 @@ describe('persisted settings localStorage', () => {
     expect(loaded?.systemPrompt).toBe('p');
     expect(loaded?.rememberKey).toBe(false);
     expect(loaded?.themeId).toBe('bw');
+  });
+});
+
+describe('provider defaults', () => {
+  afterEach(() => {
+    delete (globalThis as { LanguageModel?: unknown }).LanguageModel;
+  });
+
+  it('uses stored/host provider when set', () => {
+    const r = mergeConfigPriority({
+      host: { provider: 'chrome-ai' },
+      stored: { provider: 'openai' },
+    });
+    expect(r.provider).toBe('chrome-ai');
+  });
+
+  it('prefers chrome-ai when no key and LanguageModel present', () => {
+    (globalThis as unknown as { LanguageModel: unknown }).LanguageModel = {
+      availability: async () => 'available',
+    };
+    const r = mergeConfigPriority({ host: {}, stored: null, env: null });
+    expect(r.provider).toBe('chrome-ai');
+  });
+
+  it('stays openai when apiKey present even if LanguageModel exists', () => {
+    (globalThis as unknown as { LanguageModel: unknown }).LanguageModel = {
+      availability: async () => 'available',
+    };
+    const r = mergeConfigPriority({
+      host: { apiKey: 'sk-x' },
+      stored: null,
+    });
+    expect(r.provider).toBe('openai');
   });
 });

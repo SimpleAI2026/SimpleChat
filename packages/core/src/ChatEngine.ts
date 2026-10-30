@@ -1,7 +1,6 @@
 import { ToolRegistry } from './ToolRegistry.js';
 import { MemoryStore } from './MemoryStore.js';
 import {
-  chatCompletionsUrl,
   createId,
   type ChatEvent,
   type ChatMessage,
@@ -10,20 +9,22 @@ import {
   type HostTool,
   type SimpleChatConfig,
   type ToolCall,
+  type ChatProviderId,
 } from './types.js';
-import { mergeToolCallDeltas, parseSSEStream, type AccumulatedToolCall } from './sse.js';
-import { normalizeSecret } from './normalizeSecret.js';
+import { mergeToolCallDeltas, type AccumulatedToolCall } from './sse.js';
+import { OpenAICompatProvider } from './providers/OpenAICompatProvider.js';
+import { ChromeAiProvider } from './providers/ChromeAiProvider.js';
+import type { ChatProvider, OpenAICompatMessage } from './providers/types.js';
+import { isChatProviderId } from './providers/types.js';
 
 export interface ChatEngineOptions {
   config: SimpleChatConfig;
   store?: HistoryStore;
   storageKey?: string;
   fetchImpl?: typeof fetch;
+  /** Optional override; otherwise resolved from config.provider. */
+  provider?: ChatProvider;
 }
-
-type OpenAIMessage =
-  | { role: 'system' | 'user' | 'assistant'; content: string; tool_calls?: unknown[] }
-  | { role: 'tool'; content: string; tool_call_id: string };
 
 interface CompletionResult {
   finishReason: string | null;
@@ -38,12 +39,18 @@ export class ChatEngine {
   private fetchImpl: typeof fetch;
   private abort: AbortController | null = null;
   private listeners = new Set<(ev: ChatEvent) => void>();
+  private openaiProvider: OpenAICompatProvider;
+  private chromeProvider: ChromeAiProvider;
+  private injectedProvider: ChatProvider | null = null;
   currentThreadId: string | null = null;
 
   constructor(opts: ChatEngineOptions) {
     this.config = { ...opts.config };
     this.store = opts.store ?? new MemoryStore();
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    this.openaiProvider = new OpenAICompatProvider(this.fetchImpl);
+    this.chromeProvider = new ChromeAiProvider();
+    this.injectedProvider = opts.provider ?? null;
   }
 
   on(listener: (ev: ChatEvent) => void): () => void {
@@ -57,6 +64,23 @@ export class ChatEngine {
 
   updateConfig(partial: Partial<SimpleChatConfig>): void {
     this.config = { ...this.config, ...partial };
+  }
+
+  /** Active provider id (openai | chrome-ai). */
+  getProviderId(): ChatProviderId {
+    const p = this.config.provider;
+    if (isChatProviderId(p)) return p;
+    return 'openai';
+  }
+
+  getProvider(): ChatProvider {
+    if (this.injectedProvider) return this.injectedProvider;
+    return this.getProviderId() === 'chrome-ai' ? this.chromeProvider : this.openaiProvider;
+  }
+
+  /** Access Nano provider for availability / download UI. */
+  getChromeAiProvider(): ChromeAiProvider {
+    return this.chromeProvider;
   }
 
   registerTool(tool: HostTool): void {
@@ -141,6 +165,9 @@ export class ChatEngine {
     this.abort = new AbortController();
     const signal = this.abort.signal;
     const maxRounds = this.config.maxToolRounds ?? 5;
+    const provider = this.getProvider();
+    // Nano path does not run OpenAI tools (v1).
+    const toolsEnabled = provider.supportsTools && this.tools.list().length > 0;
 
     try {
       for (let round = 0; round <= maxRounds; round++) {
@@ -149,10 +176,10 @@ export class ChatEngine {
         const result = await this.runCompletion(thread, history, signal, (ev) => {
           events.push(ev);
           this.emit(ev);
-        });
+        }, toolsEnabled);
         for (const ev of events) yield ev;
 
-        if (result.finishReason === 'tool_calls' && result.toolCalls.length) {
+        if (toolsEnabled && result.finishReason === 'tool_calls' && result.toolCalls.length) {
           for (const call of result.toolCalls) {
             const run = await this.tools.run(call.name, call.arguments, {
               threadId: thread.id,
@@ -216,45 +243,12 @@ export class ChatEngine {
     history: ChatMessage[],
     signal: AbortSignal,
     onEvent: (ev: ChatEvent) => void,
+    toolsEnabled: boolean,
   ): Promise<CompletionResult> {
-    const { apiBaseUrl, apiKey, model, systemPrompt, temperature, maxTokens, headers, maxMessages } =
-      this.config;
-
-    if (!apiBaseUrl || !apiKey || !model) {
-      throw new Error('apiBaseUrl, apiKey, and model are required');
-    }
-
+    const { systemPrompt, maxMessages } = this.config;
+    const provider = this.getProvider();
     const openaiMessages = this.toOpenAIMessages(history, systemPrompt, maxMessages ?? 40);
-    const tools = this.tools.toOpenAI();
-
-    const body: Record<string, unknown> = {
-      model,
-      messages: openaiMessages,
-      stream: true,
-    };
-    if (temperature != null) body.temperature = temperature;
-    if (maxTokens != null) body.max_tokens = maxTokens;
-    if (tools.length) {
-      body.tools = tools;
-      body.tool_choice = 'auto';
-    }
-
-    const res = await this.fetchImpl(chatCompletionsUrl(apiBaseUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${normalizeSecret(apiKey)}`,
-        ...headers,
-      },
-      body: JSON.stringify(body),
-      signal,
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => res.statusText);
-      throw new Error(`HTTP ${res.status}: ${errText.slice(0, 400)}`);
-    }
-    if (!res.body) throw new Error('No response body');
+    const tools = toolsEnabled ? this.tools.toOpenAI() : [];
 
     const assistantId = createId('msg');
     const assistantMessage: ChatMessage = {
@@ -271,23 +265,24 @@ export class ChatEngine {
     const toolAcc = new Map<number, AccumulatedToolCall>();
     let finishReason: string | null = null;
 
-    for await (const chunk of parseSSEStream(res.body, signal)) {
-      if (chunk.finish_reason) finishReason = chunk.finish_reason;
-      const delta = chunk.delta;
-      if (!delta) continue;
-
-      if (delta.content) {
-        assistantMessage.content += delta.content;
+    for await (const ev of provider.stream({
+      config: this.config,
+      messages: openaiMessages,
+      tools,
+      signal,
+    })) {
+      if (ev.type === 'text-delta') {
+        assistantMessage.content += ev.delta;
         await this.store.updateMessage({ ...assistantMessage });
         onEvent({
           type: 'text-delta',
-          delta: delta.content,
+          delta: ev.delta,
           messageId: assistantId,
         });
-      }
-
-      if (delta.tool_calls?.length) {
-        mergeToolCallDeltas(toolAcc, delta.tool_calls);
+      } else if (ev.type === 'tool-call-deltas') {
+        mergeToolCallDeltas(toolAcc, ev.deltas);
+      } else if (ev.type === 'finish') {
+        finishReason = ev.finishReason;
       }
     }
 
@@ -320,8 +315,8 @@ export class ChatEngine {
     history: ChatMessage[],
     systemPrompt: string | undefined,
     maxMessages: number,
-  ): OpenAIMessage[] {
-    const out: OpenAIMessage[] = [];
+  ): OpenAICompatMessage[] {
+    const out: OpenAICompatMessage[] = [];
     if (systemPrompt) {
       out.push({ role: 'system', content: systemPrompt });
     }
