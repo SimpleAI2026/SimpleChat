@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SimpleChat",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Full-page SimpleChat：OpenAI 兼容云端 + Chrome 内置 Gemini Nano（扩展需 Chrome 138+）。",
   "action": {
     "default_title": "SimpleChat",
