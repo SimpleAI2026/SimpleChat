@@ -565,12 +565,14 @@ export class SimpleChatElement extends HTMLElement {
         } else if (ev.type === 'done') {
           this.streaming = false;
           this.updateSendBtn();
+          this.renderMessages();
           void this.loadThreads();
         } else if (ev.type === 'error') {
           this.streaming = false;
           this.errorText = ev.error.message;
           this.updateSendBtn();
           this.renderError();
+          this.renderMessages();
         } else if (ev.type === 'thread') {
           void this.loadThreads();
         }
@@ -800,6 +802,7 @@ export class SimpleChatElement extends HTMLElement {
         this.engine?.stop();
         this.streaming = false;
         this.updateSendBtn();
+        this.renderMessages();
       } else {
         void this.handleSend();
       }
@@ -995,10 +998,26 @@ export class SimpleChatElement extends HTMLElement {
     }
   }
 
+
+  private typingBubbleHtml(): string {
+    return (
+      `<div class="sc-bubble sc-typing" role="status" aria-busy="true" aria-label="正在输入">` +
+      `<span class="sc-typing-dot"></span>` +
+      `<span class="sc-typing-dot"></span>` +
+      `<span class="sc-typing-dot"></span>` +
+      `</div>`
+    );
+  }
+
   private renderMessages(): void {
     if (!this.messagesEl) return;
     const visible = this.messages.filter((m) => m.role === 'user' || m.role === 'assistant');
     if (!visible.length && !this.pendingTools.size) {
+      if (this.streaming) {
+        this.messagesEl.innerHTML = `<div class="sc-msg assistant">${this.typingBubbleHtml()}</div>`;
+        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+        return;
+      }
       this.messagesEl.innerHTML = `<div class="sc-empty"><div class="sc-empty-title">开始对话</div><div class="sc-empty-sub">问点什么，或让我改画布</div></div>`;
       return;
     }
@@ -1030,11 +1049,16 @@ export class SimpleChatElement extends HTMLElement {
             : `<div class="sc-bubble">${escapeHtml(m.content || '[image]')}</div>`;
         parts.push(`<div class="sc-msg user">${body}</div>`);
       } else if (m.role === 'assistant') {
-        const prose =
-          m.content?.trim() ||
-          (m.status === 'streaming' && !m.toolCalls?.length ? '…' : '');
+        const prose = m.content?.trim() || '';
+        const showTyping =
+          this.streaming &&
+          m.status === 'streaming' &&
+          !prose &&
+          !m.toolCalls?.length;
         const chunks: string[] = [];
-        if (prose) {
+        if (showTyping) {
+          chunks.push(this.typingBubbleHtml());
+        } else if (prose) {
           chunks.push(`<div class="sc-bubble">${renderMarkdown(prose)}</div>`);
         }
         if (m.toolCalls?.length) {
@@ -1061,11 +1085,17 @@ export class SimpleChatElement extends HTMLElement {
           }
           chunks.push('</div>');
         }
-        if (!chunks.length && m.status === 'streaming') {
-          chunks.push(`<div class="sc-bubble">…</div>`);
+        if (!chunks.length && this.streaming && m.status === 'streaming') {
+          chunks.push(this.typingBubbleHtml());
         }
         parts.push(`<div class="sc-msg assistant">${chunks.join('')}</div>`);
       }
+    }
+    const hasStreamingAssistant = this.messages.some(
+      (m) => m.role === 'assistant' && m.status === 'streaming',
+    );
+    if (this.streaming && !hasStreamingAssistant) {
+      parts.push(`<div class="sc-msg assistant">${this.typingBubbleHtml()}</div>`);
     }
     this.messagesEl.innerHTML = parts.join('');
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
@@ -1609,10 +1639,18 @@ export class SimpleChatElement extends HTMLElement {
     this.errorText = '';
     this.renderError();
 
+    // Show typing / stop affordance during upload wait as well as the model stream.
+    this.streaming = true;
+    this.updateSendBtn();
+    this.renderMessages();
+
     let attachments: SendAttachment[] = [];
     try {
       attachments = await this.resolveAttachmentsForSend();
     } catch (err) {
+      this.streaming = false;
+      this.updateSendBtn();
+      this.renderMessages();
       this.errorText = err instanceof Error ? err.message : String(err);
       this.renderError();
       return;
@@ -1621,8 +1659,6 @@ export class SimpleChatElement extends HTMLElement {
     const sendText = text;
     this.textarea.value = '';
     this.clearPendingAttachments();
-    this.streaming = true;
-    this.updateSendBtn();
     try {
       for await (const _ of this.engine!.send(sendText, {
         attachments: attachments.length ? attachments : undefined,
@@ -1632,6 +1668,7 @@ export class SimpleChatElement extends HTMLElement {
     } finally {
       this.streaming = false;
       this.updateSendBtn();
+      this.renderMessages();
     }
   }
 

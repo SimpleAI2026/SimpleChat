@@ -445,3 +445,150 @@ describe('attachments Phase A', () => {
     expect(err.textContent || '').toMatch(/Nano|云端|图片/);
   });
 });
+
+
+describe('SimpleChatElement typing bubble', () => {
+  function tinyPngFile(name = 't.png'): File {
+    const b64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return new File([bin], name, { type: 'image/png' });
+  }
+
+  function typingEl(el: SimpleChatElement): HTMLElement | null {
+    return el.shadowRoot!.querySelector('.sc-typing') as HTMLElement | null;
+  }
+
+  it('shows animated .sc-typing with aria-busy for empty streaming assistant', () => {
+    const el = mount({ open: '' });
+    (el as any).streaming = true;
+    (el as any).messages = [
+      {
+        id: 'a1',
+        threadId: 't1',
+        role: 'assistant',
+        content: '',
+        createdAt: Date.now(),
+        status: 'streaming',
+      },
+    ];
+    (el as any).renderMessages();
+    const tip = typingEl(el);
+    expect(tip).toBeTruthy();
+    expect(tip!.getAttribute('aria-busy')).toBe('true');
+    expect(tip!.querySelectorAll('.sc-typing-dot').length).toBe(3);
+    const msgHtml = el.shadowRoot!.querySelector('.sc-messages')!.innerHTML;
+    expect(msgHtml).toContain('sc-typing');
+    expect(msgHtml).not.toMatch(/sc-bubble">…</);
+  });
+
+  it('hides typing on first text content', () => {
+    const el = mount({ open: '' });
+    (el as any).streaming = true;
+    (el as any).messages = [
+      {
+        id: 'a1',
+        threadId: 't1',
+        role: 'assistant',
+        content: '',
+        createdAt: Date.now(),
+        status: 'streaming',
+      },
+    ];
+    (el as any).renderMessages();
+    expect(typingEl(el)).toBeTruthy();
+
+    (el as any).messages[0].content = 'Hello';
+    (el as any).renderMessages();
+    expect(typingEl(el)).toBeNull();
+    expect(el.shadowRoot!.querySelector('.sc-bubble')!.textContent).toContain('Hello');
+  });
+
+  it('hides typing on stop', () => {
+    const el = mount({ open: '' });
+    (el as any).streaming = true;
+    (el as any).messages = [
+      {
+        id: 'a1',
+        threadId: 't1',
+        role: 'assistant',
+        content: '',
+        createdAt: Date.now(),
+        status: 'streaming',
+      },
+    ];
+    (el as any).renderMessages();
+    expect(typingEl(el)).toBeTruthy();
+
+    (el as any).streaming = false;
+    (el as any).renderMessages();
+    expect(typingEl(el)).toBeNull();
+  });
+
+  it('shows optimistic typing while streaming before assistant message exists (upload wait)', () => {
+    const el = mount({ open: '' });
+    (el as any).streaming = true;
+    (el as any).messages = [
+      {
+        id: 'u1',
+        threadId: 't1',
+        role: 'user',
+        content: 'hi',
+        createdAt: Date.now(),
+        status: 'done',
+      },
+    ];
+    (el as any).renderMessages();
+    expect(typingEl(el)).toBeTruthy();
+  });
+
+  it('sets streaming early so upload wait shows typing', async () => {
+    const el = mount({
+      open: '',
+      'api-base-url': 'https://api.example.com/v1',
+      model: 'm',
+    });
+    let releaseUpload!: () => void;
+    const uploadGate = new Promise<void>((r) => {
+      releaseUpload = r;
+    });
+    el.setUploadHandler(async () => {
+      await uploadGate;
+      return { url: 'https://cdn.example/x.png', mime: 'image/png', name: 'x.png' };
+    });
+    const fetchMock = vi.fn(async () => {
+      const stream = new ReadableStream({
+        start(c) {
+          c.enqueue(
+            new TextEncoder().encode(
+              'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\n',
+            ),
+          );
+          c.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+          c.close();
+        },
+      });
+      return new Response(stream, { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    el.setConfig({
+      apiBaseUrl: 'https://api.example.com/v1',
+      apiKey: 'sk-test',
+      model: 'm',
+      provider: 'openai',
+    });
+    (el as any).ensureEngine(true);
+
+    await (el as any).addFiles([tinyPngFile()]);
+
+    const sendPromise = (el as any).handleSend();
+    await vi.waitFor(() => {
+      expect((el as any).streaming).toBe(true);
+      expect(typingEl(el)).toBeTruthy();
+    });
+    releaseUpload();
+    await sendPromise;
+    await vi.waitFor(() => expect((el as any).streaming).toBe(false));
+    expect(typingEl(el)).toBeNull();
+  });
+});
