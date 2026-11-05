@@ -1081,9 +1081,9 @@ a.sc-icon-btn svg {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--sc-radius-sm);
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1092,6 +1092,12 @@ a.sc-icon-btn svg {
   padding: 0;
   flex: 0 0 auto;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.sc-attach-btn svg {
+  display: block;
+  width: 14px;
+  height: 14px;
 }
 
 .sc-attach-btn:hover {
@@ -1112,8 +1118,8 @@ a.sc-icon-btn svg {
 .sc-attach-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sc-space-2);
-  padding: var(--sc-space-2) var(--sc-space-3) 0;
+  gap: var(--sc-space-1);
+  padding: var(--sc-space-1) var(--sc-space-2) 0;
 }
 
 .sc-attach-chips[hidden] {
@@ -1123,19 +1129,19 @@ a.sc-icon-btn svg {
 .sc-attach-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--sc-space-2);
+  gap: var(--sc-space-1);
   max-width: 100%;
-  padding: 4px 6px 4px 4px;
+  padding: 2px 4px 2px 2px;
   border: 1px solid var(--sc-border);
   border-radius: var(--sc-radius-sm);
   background: var(--sc-muted-bg);
 }
 
 .sc-attach-thumb {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: 4px;
   flex-shrink: 0;
   background: var(--sc-background);
 }
@@ -1166,12 +1172,13 @@ a.sc-icon-btn svg {
   background: transparent;
   color: var(--sc-muted);
   cursor: pointer;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
   flex: 0 0 auto;
+  padding: 0;
 }
 
 .sc-attach-remove:hover {
