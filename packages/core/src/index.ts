@@ -2,6 +2,7 @@ export type {
   SimpleChatConfig,
   ChatThread,
   ChatMessage,
+  ChatContentPart,
   ChatEvent,
   HostTool,
   ToolCall,
@@ -9,6 +10,10 @@ export type {
   HistoryStore,
   Role,
   ChatProviderId,
+  SendAttachment,
+  SendOptions,
+  UploadFileResult,
+  UploadFileHandler,
 } from './types.js';
 export {
   createId,
@@ -73,6 +78,7 @@ export {
   type ChromeAiStatus,
   type ChromeAiAvailability,
   type OpenAICompatMessage,
+  type OpenAIContentPart,
   type ProviderStreamEvent,
   type ProviderStreamRequest,
 } from './providers/index.js';

@@ -1,6 +1,6 @@
 {
   "name": "@simplechat/vue",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Thin Vue 3 wrapper for SimpleChat Web Component",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,8 +23,8 @@
     "vue": "^3.4.0"
   },
   "dependencies": {
-    "@simplechat/core": "0.1.0",
-    "@simplechat/element": "0.1.0"
+    "@simplechat/core": "0.2.0",
+    "@simplechat/element": "0.2.0"
   },
   "devDependencies": {
     "tsup": "^8.4.0",

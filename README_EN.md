@@ -189,6 +189,31 @@ import { SimpleChatSidebar } from '@simplechat/vue';
 </template>
 ```
 
+
+### Image attachments (Phase A)
+
+Composer supports paperclip, drag-drop, and paste. Defaults: **`image/*` only**, max **5** files, **4MB** each. Image-only send (no text) is allowed.
+
+Without a host upload handler, images are inlined as **data URL base64** multimodal `parts` and sent to OpenAI-compatible vision (`image_url.detail` defaults to `auto`). Phase A may persist base64 in message JSON (IDB stays at v1); production hosts should prefer `setUploadHandler` returning an https URL.
+
+```js
+const el = document.querySelector('simple-chat');
+
+el.setUploadHandler(async (file, { signal, threadId }) => {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api/upload', { method: 'POST', body: form, signal });
+  const { url } = await res.json();
+  return { url, mime: file.type, name: file.name };
+});
+
+// synonyms: el.hooks = { upload: fn } or el.onUploadFile = fn
+```
+
+Chrome Built-in AI (Gemini Nano) has **no vision in Phase A** — sends with attachments are blocked with a prompt to switch to cloud.
+
+Vue: `setUploadHandler` is exposed; prop `onUploadFile` is also supported.
+
 ### Config
 
 | Field | Meaning |

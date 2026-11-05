@@ -61,6 +61,12 @@ yarn build:min --no-copy
 
 产物：`dist/simplechat.min.js`（副作用注册 `<simple-chat>`，并导出宽度工具）。
 
+## 附件 / 图片多模态（Phase A）
+
+- 仅 `image/*`；`setUploadHandler` / `hooks.upload` / `onUploadFile` 同义；无 handler 时内联 base64。
+- Nano 遇附件拦截，请改云端；`image_url.detail` 默认 `auto`。
+- 详见 `plan/07-attachments-multimodal.md` 与 README「图片附件」。
+
 ## 中文友好
 
 仓库 README / 注释 / UI 文案以中文为主或中英双语；新增用户可见文案优先中文。

@@ -302,3 +302,146 @@ describe('layout=extension', () => {
     });
   });
 });
+
+
+describe('attachments Phase A', () => {
+  function tinyPngFile(name = 't.png'): File {
+    // 1x1 PNG
+    const b64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return new File([bin], name, { type: 'image/png' });
+  }
+
+  it('shows chip after selecting an image and can remove it', async () => {
+    const el = mount({ open: '' });
+    const input = el.shadowRoot!.querySelector('.sc-file-input') as HTMLInputElement;
+    expect(input.accept).toContain('image');
+    const file = tinyPngFile();
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    Object.defineProperty(input, 'files', { value: dt.files });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => {
+      const chips = el.shadowRoot!.querySelectorAll('.sc-attach-chip');
+      expect(chips.length).toBe(1);
+    });
+    const remove = el.shadowRoot!.querySelector('[data-remove-att]') as HTMLButtonElement;
+    remove.click();
+    await vi.waitFor(() => {
+      expect(el.shadowRoot!.querySelectorAll('.sc-attach-chip').length).toBe(0);
+    });
+  });
+
+  it('rejects non-image even if forced', async () => {
+    const el = mount({ open: '' });
+    const file = new File(['hello'], 'a.txt', { type: 'text/plain' });
+    await (el as any).addFiles([file]);
+    expect(el.shadowRoot!.querySelectorAll('.sc-attach-chip').length).toBe(0);
+    const err = el.shadowRoot!.querySelector('.sc-error') as HTMLElement;
+    expect(err.hidden).toBe(false);
+    expect(err.textContent || '').toMatch(/图片/);
+  });
+
+  it('image-only send uses data URL without upload handler', async () => {
+    const el = mount({
+      open: '',
+      'api-base-url': 'https://api.example.com/v1',
+      model: 'm',
+    });
+    el.apiKey = 'sk-test';
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const stream = new ReadableStream({
+        start(c) {
+          c.enqueue(
+            new TextEncoder().encode(
+              'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\n',
+            ),
+          );
+          c.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+          c.close();
+        },
+      });
+      return new Response(stream, { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    el.setConfig({
+      apiBaseUrl: 'https://api.example.com/v1',
+      apiKey: 'sk-test',
+      model: 'm',
+      provider: 'openai',
+    });
+    (el as any).ensureEngine(true);
+
+    await (el as any).addFiles([tinyPngFile('solo.png')]);
+    expect(el.shadowRoot!.querySelectorAll('.sc-attach-chip').length).toBe(1);
+    await (el as any).handleSend();
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    const call = fetchMock.mock.calls[0] as unknown as [unknown, RequestInit];
+    const body = JSON.parse(String(call[1].body));
+    const user = body.messages.find((m: { role: string }) => m.role === 'user');
+    expect(Array.isArray(user.content)).toBe(true);
+    const img = user.content.find((p: { type: string }) => p.type === 'image_url');
+    expect(img.image_url.url.startsWith('data:image/png')).toBe(true);
+    expect(img.image_url.detail).toBe('auto');
+  });
+
+  it('calls setUploadHandler and uses returned url', async () => {
+    const el = mount({
+      open: '',
+      'api-base-url': 'https://api.example.com/v1',
+      model: 'm',
+    });
+    const upload = vi.fn(async () => ({ url: 'https://cdn.example/x.png', mime: 'image/png', name: 'x.png' }));
+    el.setUploadHandler(upload);
+    const fetchMock = vi.fn(async () => {
+      const stream = new ReadableStream({
+        start(c) {
+          c.enqueue(
+            new TextEncoder().encode(
+              'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\n',
+            ),
+          );
+          c.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+          c.close();
+        },
+      });
+      return new Response(stream, { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    el.setConfig({
+      apiBaseUrl: 'https://api.example.com/v1',
+      apiKey: 'sk-test',
+      model: 'm',
+      provider: 'openai',
+    });
+    (el as any).ensureEngine(true);
+    await (el as any).addFiles([tinyPngFile()]);
+    await (el as any).handleSend();
+    await vi.waitFor(() => expect(upload).toHaveBeenCalled());
+    const call = fetchMock.mock.calls[0] as unknown as [unknown, RequestInit];
+    const body = JSON.parse(String(call[1].body));
+    const user = body.messages.find((m: { role: string }) => m.role === 'user');
+    const img = user.content.find((p: { type: string }) => p.type === 'image_url');
+    expect(img.image_url.url).toBe('https://cdn.example/x.png');
+  });
+
+  it('blocks chrome-ai send when attachments present', async () => {
+    const el = mount({ open: '' });
+    el.setConfig({ provider: 'chrome-ai', apiBaseUrl: '', apiKey: '', model: '' });
+    (globalThis as any).LanguageModel = {
+      availability: vi.fn(async () => 'available'),
+      create: vi.fn(async () => ({
+        prompt: vi.fn(async () => 'x'),
+        promptStreaming: undefined,
+      })),
+    };
+    await (el as any).addFiles([tinyPngFile()]);
+    await (el as any).handleSend();
+    const err = el.shadowRoot!.querySelector('.sc-error') as HTMLElement;
+    expect(err.hidden).toBe(false);
+    expect(err.textContent || '').toMatch(/Nano|云端|图片/);
+  });
+});

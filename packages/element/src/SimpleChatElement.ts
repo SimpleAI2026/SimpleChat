@@ -29,9 +29,23 @@ import {
   type ToolStyleOverrides,
   type ChatProviderId,
   type ChromeAiStatus,
+  type SendAttachment,
+  type UploadFileHandler,
+  type UploadFileResult,
 } from '@simplechat/core';
 import { defaultStyles } from './styles.js';
 import { renderMarkdown } from './markdown.js';
+import {
+  DEFAULT_ACCEPT,
+  DEFAULT_MAX_ATTACHMENT_BYTES,
+  DEFAULT_MAX_ATTACHMENTS,
+  createPendingId,
+  fileToDataUrl,
+  formatBytes,
+  isImageFile,
+  resolveUploadToUrl,
+  type PendingAttachment,
+} from './attachments.js';
 
 export interface SimpleChatElementProps {
   apiBaseUrl?: string;
@@ -99,6 +113,15 @@ export class SimpleChatElement extends HTMLElement {
   private messagesEl!: HTMLElement;
   private textarea!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
+  private attachBtn!: HTMLButtonElement;
+  private fileInput!: HTMLInputElement;
+  private chipsEl!: HTMLElement;
+  private composerCardEl!: HTMLElement;
+  private pendingAttachments: PendingAttachment[] = [];
+  private uploadHandler: UploadFileHandler | null = null;
+  private maxAttachmentBytes = DEFAULT_MAX_ATTACHMENT_BYTES;
+  private maxAttachments = DEFAULT_MAX_ATTACHMENTS;
+  private acceptTypes = DEFAULT_ACCEPT;
   private threadNameEl!: HTMLElement;
   private drawerEl!: HTMLElement;
   private settingsEl!: HTMLElement;
@@ -312,6 +335,47 @@ export class SimpleChatElement extends HTMLElement {
     this.hostSettingsNode = el;
     this.attachHostSettingsSlot();
   }
+
+  /**
+   * Host-pluggable upload. When null, images are inlined as data URL base64.
+   * Synonyms: assign `el.hooks = { upload }` or `el.onUploadFile = fn`.
+   */
+  setUploadHandler(handler: UploadFileHandler | null): void {
+    this.uploadHandler = handler;
+  }
+
+  get hooks(): { upload?: UploadFileHandler } {
+    return { upload: this.uploadHandler ?? undefined };
+  }
+  set hooks(v: { upload?: UploadFileHandler } | null | undefined) {
+    this.uploadHandler = v?.upload ?? null;
+  }
+
+  get onUploadFile(): UploadFileHandler | null {
+    return this.uploadHandler;
+  }
+  set onUploadFile(fn: UploadFileHandler | null) {
+    this.uploadHandler = fn;
+  }
+
+  /** Optional limits (Phase A defaults: image/*, 4MB, max 5). */
+  setAttachmentLimits(opts: {
+    accept?: string;
+    maxAttachmentBytes?: number;
+    maxAttachments?: number;
+  }): void {
+    if (opts.accept != null) {
+      this.acceptTypes = opts.accept || DEFAULT_ACCEPT;
+      if (this.fileInput) this.fileInput.accept = this.acceptTypes;
+    }
+    if (opts.maxAttachmentBytes != null) {
+      this.maxAttachmentBytes = opts.maxAttachmentBytes;
+    }
+    if (opts.maxAttachments != null) {
+      this.maxAttachments = opts.maxAttachments;
+    }
+  }
+
 
   /** Focus the composer textarea (host may call after opening the panel). */
   focusComposer(): void {
@@ -663,9 +727,16 @@ export class SimpleChatElement extends HTMLElement {
         <div class="sc-messages"></div>
       <div class="sc-composer">
         <div class="sc-composer-card">
+          <div class="sc-attach-chips" data-attach-chips hidden></div>
           <textarea rows="2" placeholder="输入消息…" aria-label="消息输入"></textarea>
           <div class="sc-composer-footer">
-            <div class="sc-hint">Enter 发送 · Shift+Enter 换行</div>
+            <div class="sc-composer-footer-left">
+              <button type="button" class="sc-attach-btn" data-act="attach" title="添加图片" aria-label="添加图片">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              <input type="file" class="sc-file-input" accept="image/*" multiple hidden aria-hidden="true" />
+              <div class="sc-hint">Enter 发送 · Shift+Enter 换行</div>
+            </div>
             <button type="button" class="sc-send">发送</button>
           </div>
         </div>
@@ -679,6 +750,11 @@ export class SimpleChatElement extends HTMLElement {
     // Must scope to composer — settings drawer also has a <textarea> (systemPrompt).
     this.textarea = this.rootEl.querySelector('.sc-composer textarea')!;
     this.sendBtn = this.rootEl.querySelector('.sc-composer .sc-send')!;
+    this.attachBtn = this.rootEl.querySelector('.sc-composer .sc-attach-btn')!;
+    this.fileInput = this.rootEl.querySelector('.sc-composer .sc-file-input')!;
+    this.chipsEl = this.rootEl.querySelector('[data-attach-chips]')!;
+    this.composerCardEl = this.rootEl.querySelector('.sc-composer-card')!;
+    if (this.fileInput) this.fileInput.accept = this.acceptTypes;
     this.threadNameEl = this.rootEl.querySelector('.sc-thread-name')!;
     this.drawerEl = this.rootEl.querySelector('.sc-thread-drawer')!;
     this.settingsEl = this.rootEl.querySelector('.sc-settings-drawer')!;
@@ -738,6 +814,7 @@ export class SimpleChatElement extends HTMLElement {
       }
     });
     this.wireKeyboardIsolation();
+    this.wireAttachmentUi();
 
     // Provider radio toggles Nano / OpenAI panels
     this.settingsEl.addEventListener('change', (e) => {
@@ -929,9 +1006,29 @@ export class SimpleChatElement extends HTMLElement {
     const parts: string[] = [];
     for (const m of this.messages) {
       if (m.role === 'user') {
-        parts.push(
-          `<div class="sc-msg user"><div class="sc-bubble">${escapeHtml(m.content)}</div></div>`,
+        const imgParts = (m.parts || []).filter(
+          (p): p is Extract<typeof p, { type: 'image_url' }> => p.type === 'image_url',
         );
+        const textHtml =
+          m.content && m.content !== '[image]'
+            ? `<div class="sc-bubble">${escapeHtml(m.content)}</div>`
+            : imgParts.length && (!m.content || m.content === '[image]')
+              ? ''
+              : `<div class="sc-bubble">${escapeHtml(m.content || '')}</div>`;
+        const imgsHtml = imgParts.length
+          ? `<div class="sc-msg-images">${imgParts
+              .map(
+                (p) =>
+                  `<img class="sc-msg-image" src="${escapeHtml(p.image_url.url)}" alt="${escapeHtml(p.name || 'image')}" />`,
+              )
+              .join('')}</div>`
+          : '';
+        // image-only: still show a minimal bubble if no imgs persisted
+        const body =
+          textHtml || imgsHtml
+            ? `${imgsHtml}${textHtml}`
+            : `<div class="sc-bubble">${escapeHtml(m.content || '[image]')}</div>`;
+        parts.push(`<div class="sc-msg user">${body}</div>`);
       } else if (m.role === 'assistant') {
         const prose =
           m.content?.trim() ||
@@ -1245,12 +1342,243 @@ export class SimpleChatElement extends HTMLElement {
     }
   }
 
+
+  private wireAttachmentUi(): void {
+    if (!this.attachBtn || !this.fileInput || !this.composerCardEl) return;
+
+    this.attachBtn.addEventListener('click', () => {
+      if (this.streaming) return;
+      this.fileInput.click();
+    });
+    this.fileInput.addEventListener('change', () => {
+      const files = this.fileInput.files ? Array.from(this.fileInput.files) : [];
+      this.fileInput.value = '';
+      void this.addFiles(files);
+    });
+
+    const card = this.composerCardEl;
+    const onDrag = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    card.addEventListener('dragenter', (e) => {
+      onDrag(e);
+      if (!this.streaming) card.classList.add('sc-drag-over');
+    });
+    card.addEventListener('dragover', (e) => {
+      onDrag(e);
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      if (!this.streaming) card.classList.add('sc-drag-over');
+    });
+    card.addEventListener('dragleave', (e) => {
+      onDrag(e);
+      if (!card.contains(e.relatedTarget as Node)) {
+        card.classList.remove('sc-drag-over');
+      }
+    });
+    card.addEventListener('drop', (e) => {
+      onDrag(e);
+      card.classList.remove('sc-drag-over');
+      if (this.streaming) return;
+      const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files) : [];
+      void this.addFiles(files);
+    });
+
+    // Paste images when composer is focused
+    this.textarea.addEventListener('paste', (e) => {
+      e.stopPropagation();
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file') {
+          const f = item.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length) {
+        e.preventDefault();
+        void this.addFiles(files);
+      }
+    });
+
+    this.chipsEl?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-remove-att]') as HTMLElement | null;
+      if (!btn) return;
+      const id = btn.getAttribute('data-remove-att');
+      if (id) this.removePendingAttachment(id);
+    });
+  }
+
+  private emitAttachmentsChange(): void {
+    this.dispatchEvent(
+      new CustomEvent('sc-attachments-change', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          files: this.pendingAttachments.map((a) => ({
+            id: a.id,
+            name: a.name,
+            mime: a.mime,
+            size: a.size,
+          })),
+        },
+      }),
+    );
+  }
+
+  private async addFiles(files: File[]): Promise<void> {
+    if (!files.length || this.streaming) return;
+    let error: string | null = null;
+    for (const file of files) {
+      if (this.pendingAttachments.length >= this.maxAttachments) {
+        error = `最多添加 ${this.maxAttachments} 个附件`;
+        break;
+      }
+      if (!isImageFile(file)) {
+        error = `暂仅支持图片（image/*），已忽略：${file.name || 'file'}`;
+        this.dispatchEvent(
+          new CustomEvent('sc-upload-error', {
+            bubbles: true,
+            composed: true,
+            detail: { name: file.name, error: error },
+          }),
+        );
+        continue;
+      }
+      if (file.size > this.maxAttachmentBytes) {
+        error = `文件过大（上限 ${formatBytes(this.maxAttachmentBytes)}）：${file.name}`;
+        this.dispatchEvent(
+          new CustomEvent('sc-upload-error', {
+            bubbles: true,
+            composed: true,
+            detail: { name: file.name, error: error },
+          }),
+        );
+        continue;
+      }
+      const pending: PendingAttachment = {
+        id: createPendingId(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+        name: file.name || 'image',
+        mime: file.type || 'image/*',
+        size: file.size,
+      };
+      this.pendingAttachments.push(pending);
+    }
+    if (error) {
+      this.errorText = error;
+      this.renderError();
+    }
+    this.renderAttachmentChips();
+    this.emitAttachmentsChange();
+  }
+
+  private removePendingAttachment(id: string): void {
+    const idx = this.pendingAttachments.findIndex((a) => a.id === id);
+    if (idx < 0) return;
+    const [removed] = this.pendingAttachments.splice(idx, 1);
+    try {
+      URL.revokeObjectURL(removed.previewUrl);
+    } catch {
+      /* ignore */
+    }
+    this.renderAttachmentChips();
+    this.emitAttachmentsChange();
+  }
+
+  private clearPendingAttachments(): void {
+    for (const a of this.pendingAttachments) {
+      try {
+        URL.revokeObjectURL(a.previewUrl);
+      } catch {
+        /* ignore */
+      }
+    }
+    this.pendingAttachments = [];
+    this.renderAttachmentChips();
+    this.emitAttachmentsChange();
+  }
+
+  private renderAttachmentChips(): void {
+    if (!this.chipsEl) return;
+    if (!this.pendingAttachments.length) {
+      this.chipsEl.hidden = true;
+      this.chipsEl.innerHTML = '';
+      return;
+    }
+    this.chipsEl.hidden = false;
+    this.chipsEl.innerHTML = this.pendingAttachments
+      .map(
+        (a) =>
+          `<div class="sc-attach-chip" data-att-id="${escapeHtml(a.id)}">` +
+          `<img class="sc-attach-thumb" src="${escapeHtml(a.previewUrl)}" alt="" />` +
+          `<div class="sc-attach-meta">` +
+          `<span class="sc-attach-name">${escapeHtml(a.name)}</span>` +
+          `<span class="sc-attach-size">${escapeHtml(formatBytes(a.size))}</span>` +
+          `</div>` +
+          `<button type="button" class="sc-attach-remove" data-remove-att="${escapeHtml(a.id)}" aria-label="移除">✕</button>` +
+          `</div>`,
+      )
+      .join('');
+  }
+
+  private async resolveAttachmentsForSend(): Promise<SendAttachment[]> {
+    const out: SendAttachment[] = [];
+    const signal = new AbortController().signal;
+    const threadId = this.engine?.currentThreadId ?? null;
+    for (const pending of this.pendingAttachments) {
+      if (this.uploadHandler) {
+        try {
+          const result: UploadFileResult = await this.uploadHandler(pending.file, {
+            signal,
+            threadId,
+          });
+          const url = resolveUploadToUrl(result);
+          out.push({
+            url,
+            mime: result.mime || pending.mime,
+            name: result.name || pending.name,
+            detail: 'auto',
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.dispatchEvent(
+            new CustomEvent('sc-upload-error', {
+              bubbles: true,
+              composed: true,
+              detail: { name: pending.name, error: msg },
+            }),
+          );
+          throw new Error(`上传失败：${pending.name} — ${msg}`);
+        }
+      } else {
+        const dataUrl = await fileToDataUrl(pending.file);
+        out.push({
+          url: dataUrl,
+          mime: pending.mime,
+          name: pending.name,
+          detail: 'auto',
+        });
+      }
+    }
+    return out;
+  }
+
   private async handleSend(): Promise<void> {
     const text = this.textarea.value.trim();
-    if (!text || this.streaming) return;
+    const hasAtt = this.pendingAttachments.length > 0;
+    if ((!text && !hasAtt) || this.streaming) return;
     this.ensureEngine();
     const cfg = this.resolveConfig();
     const provider = cfg.provider || 'openai';
+
+    if (provider === 'chrome-ai' && hasAtt) {
+      this.errorText = '端侧 Gemini Nano 暂不支持图片，请改用 OpenAI 兼容云端后再发送附件。';
+      this.renderError();
+      return;
+    }
 
     if (provider === 'chrome-ai') {
       const avail = await checkChromeAiAvailability();
@@ -1280,14 +1608,31 @@ export class SimpleChatElement extends HTMLElement {
 
     this.errorText = '';
     this.renderError();
+
+    let attachments: SendAttachment[] = [];
+    try {
+      attachments = await this.resolveAttachmentsForSend();
+    } catch (err) {
+      this.errorText = err instanceof Error ? err.message : String(err);
+      this.renderError();
+      return;
+    }
+
+    const sendText = text;
     this.textarea.value = '';
+    this.clearPendingAttachments();
     this.streaming = true;
     this.updateSendBtn();
-    for await (const _ of this.engine!.send(text)) {
-      /* events handled via on() */
+    try {
+      for await (const _ of this.engine!.send(sendText, {
+        attachments: attachments.length ? attachments : undefined,
+      })) {
+        /* events handled via on() */
+      }
+    } finally {
+      this.streaming = false;
+      this.updateSendBtn();
     }
-    this.streaming = false;
-    this.updateSendBtn();
   }
 
   private applyProviderPanelVisibility(provider: ChatProviderId): void {

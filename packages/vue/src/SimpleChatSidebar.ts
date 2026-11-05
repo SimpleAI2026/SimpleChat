@@ -8,7 +8,7 @@ import {
   type PropType,
   type CSSProperties,
 } from 'vue';
-import type { HostTool, SimpleChatConfig, ToolStyleOverrides } from '@simplechat/core';
+import type { HostTool, SimpleChatConfig, ToolStyleOverrides, UploadFileHandler } from '@simplechat/core';
 import '@simplechat/element';
 import type { SimpleChatElement } from '@simplechat/element';
 
@@ -26,6 +26,7 @@ export const SimpleChatSidebar = defineComponent({
     theme: { type: String, default: '' },
     themeCss: { type: String, default: '' },
     themeStyle: { type: Object as PropType<CSSProperties & Record<string, string>>, default: () => ({}) },
+    onUploadFile: { type: Function as PropType<UploadFileHandler | null>, default: null },
   },
   emits: ['update:open', 'close', 'resize'],
   setup(props, { emit, expose }) {
@@ -89,6 +90,7 @@ export const SimpleChatSidebar = defineComponent({
 
     onMounted(() => {
       applyAll(true);
+      elRef.value?.setUploadHandler(props.onUploadFile ?? null);
       elRef.value?.addEventListener('sc-close', onClose as EventListener);
       elRef.value?.addEventListener('sc-resize', onResize as EventListener);
     });
@@ -141,6 +143,14 @@ export const SimpleChatSidebar = defineComponent({
 
     // themeStyle object on host element via render
 
+    watch(
+      () => props.onUploadFile,
+      (fn) => {
+        elRef.value?.setUploadHandler(fn ?? null);
+      },
+      { immediate: true },
+    );
+
     expose({
       getElement,
       setTheme: (id: string) => elRef.value?.setTheme(id),
@@ -149,6 +159,7 @@ export const SimpleChatSidebar = defineComponent({
       getUiStyle: () => elRef.value?.getUiStyle(),
       getToolStyle: () => elRef.value?.getToolStyle(),
       setHostSettingsSlot: (el: HTMLElement | null) => elRef.value?.setHostSettingsSlot(el),
+      setUploadHandler: (handler: UploadFileHandler | null) => elRef.value?.setUploadHandler(handler),
       getWidth: () => elRef.value?.getWidth?.(),
       setWidth: (width: number, opts?: { persist?: boolean; emit?: boolean }) =>
         elRef.value?.setWidth?.(width, opts),

@@ -189,6 +189,33 @@ import { SimpleChatSidebar } from '@simplechat/vue';
 </template>
 ```
 
+
+### 图片附件（Phase A）
+
+Composer 支持纸夹选图、拖拽、粘贴；默认仅 `image/*`，最多 **5** 张、单文件 **4MB**。允许「仅图片、无文字」发送。
+
+无宿主上传时，图片以 **data URL base64** 写入多模态 `parts` 并直发 OpenAI 兼容 vision（`image_url.detail` 默认 `auto`）。Phase A 可将 base64 一并写入消息 JSON（IDB 仍为 v1）；生产建议后续接 `setUploadHandler` 返回 https URL。
+
+```js
+const el = document.querySelector('simple-chat');
+
+// 主推：宿主上传
+el.setUploadHandler(async (file, { signal, threadId }) => {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api/upload', { method: 'POST', body: form, signal });
+  const { url } = await res.json();
+  return { url, mime: file.type, name: file.name };
+});
+
+// 同义写法
+el.hooks = { upload: el.onUploadFile }; // 或 el.onUploadFile = fn
+```
+
+Chrome 内置 AI（Gemini Nano）**暂不支持图片**：有附件时会拦截并提示改用云端。
+
+Vue：`expose` 了 `setUploadHandler`；也可传 prop `onUploadFile`。
+
 ### Config
 
 | 字段 | 说明 |

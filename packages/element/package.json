@@ -1,6 +1,6 @@
 {
   "name": "@simplechat/element",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "SimpleChat Web Component (<simple-chat>) with shadcn-like B&W UI",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,7 +23,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@simplechat/core": "0.1.0",
+    "@simplechat/core": "0.2.0",
     "marked": "^15.0.7"
   },
   "devDependencies": {

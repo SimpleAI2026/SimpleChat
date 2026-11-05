@@ -1,6 +1,6 @@
 {
   "name": "@simplechat/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-agnostic OpenAI-compatible chat engine with tools and history",
   "type": "module",
   "main": "./dist/index.js",
