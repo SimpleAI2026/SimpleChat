@@ -636,7 +636,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@simplechat/core@npm:0.1.0, @simplechat/core@workspace:*, @simplechat/core@workspace:packages/core":
+"@simplechat/core@npm:0.2.0, @simplechat/core@workspace:*, @simplechat/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@simplechat/core@workspace:packages/core"
   dependencies:
@@ -662,11 +662,11 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@simplechat/element@npm:0.1.0, @simplechat/element@workspace:*, @simplechat/element@workspace:packages/element":
+"@simplechat/element@npm:0.2.0, @simplechat/element@workspace:*, @simplechat/element@workspace:packages/element":
   version: 0.0.0-use.local
   resolution: "@simplechat/element@workspace:packages/element"
   dependencies:
-    "@simplechat/core": "npm:0.1.0"
+    "@simplechat/core": "npm:0.2.0"
     happy-dom: "npm:^17.4.4"
     marked: "npm:^15.0.7"
     tsup: "npm:^8.4.0"
@@ -690,8 +690,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@simplechat/vue@workspace:packages/vue"
   dependencies:
-    "@simplechat/core": "npm:0.1.0"
-    "@simplechat/element": "npm:0.1.0"
+    "@simplechat/core": "npm:0.2.0"
+    "@simplechat/element": "npm:0.2.0"
     tsup: "npm:^8.4.0"
     typescript: "npm:^5.8.2"
     vue: "npm:^3.5.22"

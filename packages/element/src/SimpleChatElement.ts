@@ -18,6 +18,7 @@ import {
   saveSidebarWidth,
   clampSidebarWidth,
   SC_WIDTH_DEFAULT,
+  SC_NARROW_BREAKPOINT,
   checkChromeAiAvailability,
   CHROME_AI_STATUS,
   isChatProviderId,
@@ -133,6 +134,8 @@ export class SimpleChatElement extends HTMLElement {
   private panelWidth = SC_WIDTH_DEFAULT;
   private resizing = false;
   private unbound: Array<() => void> = [];
+  private isNarrow = false;
+  private narrowMq: MediaQueryList | null = null;
 
   constructor() {
     super();
@@ -141,6 +144,8 @@ export class SimpleChatElement extends HTMLElement {
 
   connectedCallback(): void {
     this.renderShell();
+    this.setupNarrowObserver();
+    this.setupVisualViewportOffset();
     this.ensureEngine();
     void this.refresh();
   }
@@ -933,16 +938,95 @@ export class SimpleChatElement extends HTMLElement {
     return (this.getAttribute('layout') || '') === 'extension';
   }
 
+  /** Desktop extension keeps a persistent thread rail; narrow uses overlay drawer. */
+  private keepThreadsOpen(): boolean {
+    return this.isExtensionLayout() && !this.isNarrow;
+  }
+
+  private setupNarrowObserver(): void {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      this.setNarrow(false);
+      return;
+    }
+    this.narrowMq = window.matchMedia(`(max-width: ${SC_NARROW_BREAKPOINT}px)`);
+    const onChange = (ev?: MediaQueryList | MediaQueryListEvent | Event) => {
+      const fromEv =
+        ev && typeof ev === 'object' && 'matches' in ev
+          ? !!(ev as MediaQueryList).matches
+          : !!this.narrowMq?.matches;
+      this.setNarrow(fromEv);
+    };
+    onChange();
+    if (typeof this.narrowMq.addEventListener === 'function') {
+      this.narrowMq.addEventListener('change', onChange);
+      this.unbound.push(() => this.narrowMq?.removeEventListener('change', onChange));
+    } else {
+      // Safari < 14
+      const legacy = this.narrowMq as MediaQueryList & {
+        addListener?: (cb: (mq: MediaQueryListEvent) => void) => void;
+        removeListener?: (cb: (mq: MediaQueryListEvent) => void) => void;
+      };
+      legacy.addListener?.(onChange);
+      this.unbound.push(() => legacy.removeListener?.(onChange));
+    }
+  }
+
+  private setNarrow(narrow: boolean): void {
+    const wasNarrow = this.isNarrow;
+    this.isNarrow = !!narrow;
+    if (this.isNarrow) this.setAttribute('data-narrow', '');
+    else this.removeAttribute('data-narrow');
+    if (this.rootEl) this.rootEl.dataset.narrow = this.isNarrow ? 'true' : 'false';
+    // Desktop rail → overlay: collapse so the chat column stays visible.
+    if (!wasNarrow && this.isNarrow && this.isExtensionLayout()) {
+      this.showThreads = false;
+    }
+    if (!this.rootEl) return;
+    // Re-apply so extension rail ↔ overlay switches with the breakpoint.
+    this.applyLayout();
+  }
+
+  /** Lift composer above the soft keyboard using visualViewport when available. */
+  private setupVisualViewportOffset(): void {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!vv || !this.rootEl) return;
+    const update = () => {
+      if (!this.rootEl) return;
+      if (!this.isNarrow) {
+        this.rootEl.style.setProperty('--sc-vv-offset', '0px');
+        this.rootEl.style.removeProperty('--sc-vv-height');
+        return;
+      }
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      this.rootEl.style.setProperty('--sc-vv-offset', `${Math.round(offset)}px`);
+      this.rootEl.style.setProperty('--sc-vv-height', `${Math.round(vv.height)}px`);
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update();
+    this.unbound.push(() => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    });
+  }
+
   private applyLayout(): void {
     if (!this.rootEl) return;
     const layout = this.getAttribute('layout') || 'sidebar';
     this.rootEl.dataset.layout = layout;
+    this.rootEl.dataset.narrow = this.isNarrow ? 'true' : 'false';
     // Only sidebar uses open/closed hide; extension stays full-page (default open).
     const closed = !this.open && layout === 'sidebar';
     this.rootEl.dataset.closed = closed ? 'true' : 'false';
     const pos = this.getAttribute('position') || 'right';
     if (layout === 'sidebar') {
-      if (pos === 'left') {
+      if (this.isNarrow) {
+        // Full-width sheet — clear desktop side anchoring.
+        this.rootEl.style.insetInlineEnd = '0';
+        this.rootEl.style.insetInlineStart = '0';
+        this.rootEl.style.borderLeft = 'none';
+        this.rootEl.style.borderRight = 'none';
+      } else if (pos === 'left') {
         this.rootEl.style.insetInlineEnd = 'auto';
         this.rootEl.style.insetInlineStart = '0';
         this.rootEl.style.borderLeft = 'none';
@@ -959,13 +1043,18 @@ export class SimpleChatElement extends HTMLElement {
       this.rootEl.style.borderLeft = '';
       this.rootEl.style.borderRight = '';
     }
-    if (layout === 'extension') {
-      // Persistent left thread rail (not full-screen overlay by default).
+    if (this.keepThreadsOpen()) {
+      // Persistent left thread rail (desktop extension).
       this.showThreads = true;
       if (this.drawerEl) this.drawerEl.hidden = false;
-      if (this.resizeHandleEl) this.resizeHandleEl.hidden = true;
-    } else if (this.resizeHandleEl) {
-      this.resizeHandleEl.hidden = false;
+    } else if (this.isExtensionLayout() && this.isNarrow) {
+      // Narrow extension: do not force the overlay open.
+      // Preserve current showThreads; ensure drawer reflects it.
+      if (this.drawerEl) this.drawerEl.hidden = !this.showThreads;
+    }
+    if (this.resizeHandleEl) {
+      // Hide resize on extension always, and on any narrow layout.
+      this.resizeHandleEl.hidden = this.isExtensionLayout() || this.isNarrow;
     }
     this.syncResizeHandleSide();
   }
@@ -1136,7 +1225,7 @@ export class SimpleChatElement extends HTMLElement {
   }
 
   private openSettings(): void {
-    if (!this.isExtensionLayout()) {
+    if (!this.keepThreadsOpen()) {
       this.showThreads = false;
       this.drawerEl.hidden = true;
     }
@@ -1330,10 +1419,11 @@ export class SimpleChatElement extends HTMLElement {
     this.renderError();
     await this.engine!.createThread();
     this.messages = [];
-    if (this.isExtensionLayout()) {
+    if (this.keepThreadsOpen()) {
       this.showThreads = true;
       this.drawerEl.hidden = false;
     } else {
+      // Overlay / narrow: collapse thread list after creating a thread.
       this.showThreads = false;
       this.drawerEl.hidden = true;
     }
@@ -1346,10 +1436,11 @@ export class SimpleChatElement extends HTMLElement {
     await this.engine!.selectThread(id);
     this.messages = await this.engine!.getMessages(id);
     this.pendingTools.clear();
-    if (this.isExtensionLayout()) {
+    if (this.keepThreadsOpen()) {
       this.showThreads = true;
       this.drawerEl.hidden = false;
     } else {
+      // Overlay / narrow: collapse after select.
       this.showThreads = false;
       this.drawerEl.hidden = true;
     }

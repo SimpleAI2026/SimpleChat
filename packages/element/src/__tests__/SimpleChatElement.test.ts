@@ -26,6 +26,61 @@ function settingsInput(el: SimpleChatElement, field: string): HTMLInputElement {
 
 const mem = new Map<string, string>();
 
+function stubMatchMedia(matches: boolean) {
+  const listeners = new Set<(ev: MediaQueryListEvent) => void>();
+  let current = matches;
+  const mql = {
+    get matches() {
+      return current;
+    },
+    media: '(max-width: 640px)',
+    onchange: null as ((this: MediaQueryList, ev: MediaQueryListEvent) => void) | null,
+    addEventListener: (_type: string, cb: EventListenerOrEventListenerObject) => {
+      const fn = typeof cb === 'function' ? cb : cb.handleEvent.bind(cb);
+      listeners.add(fn as (ev: MediaQueryListEvent) => void);
+    },
+    removeEventListener: (_type: string, cb: EventListenerOrEventListenerObject) => {
+      const fn = typeof cb === 'function' ? cb : cb.handleEvent.bind(cb);
+      listeners.delete(fn as (ev: MediaQueryListEvent) => void);
+    },
+    addListener: (cb: (ev: MediaQueryListEvent) => void) => {
+      listeners.add(cb);
+    },
+    removeListener: (cb: (ev: MediaQueryListEvent) => void) => {
+      listeners.delete(cb);
+    },
+    dispatchEvent: () => false,
+  } as MediaQueryList;
+  const matchMediaFn = ((query: string) => {
+    // Keep media string updated for realism.
+    (mql as { media: string }).media = query;
+    return mql;
+  }) as typeof window.matchMedia;
+  vi.stubGlobal('matchMedia', matchMediaFn);
+  // happy-dom keeps its own window.matchMedia — mirror the stub there too.
+  if (typeof window !== 'undefined') {
+    try {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: matchMediaFn,
+      });
+    } catch {
+      (window as Window & { matchMedia: typeof matchMediaFn }).matchMedia = matchMediaFn;
+    }
+  }
+  return {
+    mql,
+    listenerCount: () => listeners.size,
+    setMatches(next: boolean) {
+      current = next;
+      const ev = { matches: next, media: mql.media } as MediaQueryListEvent;
+      for (const cb of [...listeners]) cb(ev);
+      mql.onchange?.call(mql, ev);
+    },
+  };
+}
+
 beforeEach(() => {
   mem.clear();
   vi.stubGlobal('localStorage', {
@@ -38,6 +93,8 @@ beforeEach(() => {
     },
     clear: () => mem.clear(),
   });
+  // Default: wide viewport so existing desktop/extension tests keep rail behavior.
+  stubMatchMedia(false);
   delete (globalThis as { LanguageModel?: unknown }).LanguageModel;
 });
 
@@ -303,6 +360,87 @@ describe('layout=extension', () => {
   });
 });
 
+
+describe('narrow / mobile (data-narrow)', () => {
+  it('sets data-narrow on host when viewport ≤640px', () => {
+    stubMatchMedia(true);
+    const el = mount({ layout: 'sidebar', open: '' });
+    expect(el.hasAttribute('data-narrow')).toBe(true);
+    const root = el.shadowRoot!.querySelector('.sc-root') as HTMLElement;
+    expect(root.dataset.narrow).toBe('true');
+  });
+
+  it('hides resize handle on narrow sidebar', () => {
+    stubMatchMedia(true);
+    const el = mount({ layout: 'sidebar', open: '' });
+    const handle = el.shadowRoot!.querySelector('.sc-resize-handle') as HTMLElement;
+    expect(handle).toBeTruthy();
+    expect(handle.hidden).toBe(true);
+  });
+
+  it('extension narrow: does not force thread drawer open', () => {
+    stubMatchMedia(true);
+    const el = mount({ layout: 'extension', open: '' });
+    expect(el.hasAttribute('data-narrow')).toBe(true);
+    const drawer = el.shadowRoot!.querySelector('.sc-thread-drawer') as HTMLElement;
+    // Overlay mode — closed until user opens threads
+    expect(drawer.hidden).toBe(true);
+  });
+
+  it('extension narrow: thread drawer opens via toggle and collapses after select', async () => {
+    stubMatchMedia(true);
+    const el = mount({ layout: 'extension', open: '', 'storage-key': 'narrow-ext-select' });
+    const drawer = el.shadowRoot!.querySelector('.sc-thread-drawer') as HTMLElement;
+    expect(drawer.hidden).toBe(true);
+
+    (el.shadowRoot!.querySelector('[data-act="threads"]') as HTMLButtonElement).click();
+    expect(drawer.hidden).toBe(false);
+
+    // Create a thread then open list and select it — should collapse on narrow.
+    (el.shadowRoot!.querySelector('[data-act="new"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      expect(drawer.hidden).toBe(true);
+    });
+
+    (el.shadowRoot!.querySelector('[data-act="threads"]') as HTMLButtonElement).click();
+    expect(drawer.hidden).toBe(false);
+
+    await vi.waitFor(() => {
+      expect(drawer.querySelectorAll('[data-thread]').length).toBeGreaterThan(0);
+    });
+    const item = drawer.querySelector('[data-thread]') as HTMLButtonElement;
+    item.click();
+    await vi.waitFor(() => {
+      expect(drawer.hidden).toBe(true);
+    });
+  });
+
+  it('extension wide still keeps persistent thread rail', () => {
+    stubMatchMedia(false);
+    const el = mount({ layout: 'extension', open: '' });
+    expect(el.hasAttribute('data-narrow')).toBe(false);
+    const drawer = el.shadowRoot!.querySelector('.sc-thread-drawer') as HTMLElement;
+    expect(drawer.hidden).toBe(false);
+  });
+
+  it('entering narrow collapses extension rail into overlay (and leaving restores rail)', () => {
+    stubMatchMedia(false);
+    const el = mount({ layout: 'extension', open: '' });
+    const drawer = el.shadowRoot!.querySelector('.sc-thread-drawer') as HTMLElement;
+    expect(el.hasAttribute('data-narrow')).toBe(false);
+    expect(drawer.hidden).toBe(false);
+
+    // Simulate breakpoint crossing (matchMedia change → setNarrow).
+    const host = el as unknown as { setNarrow: (n: boolean) => void };
+    host.setNarrow(true);
+    expect(el.hasAttribute('data-narrow')).toBe(true);
+    expect(drawer.hidden).toBe(true);
+
+    host.setNarrow(false);
+    expect(el.hasAttribute('data-narrow')).toBe(false);
+    expect(drawer.hidden).toBe(false);
+  });
+});
 
 describe('attachments Phase A', () => {
   function tinyPngFile(name = 't.png'): File {

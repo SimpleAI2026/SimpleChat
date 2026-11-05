@@ -43,6 +43,9 @@ export const SC_WIDTH_MAX = 720;
 export const SC_WIDTH_DEFAULT = 400;
 export const SC_WIDTH_STORAGE_KEY = 'simplechat:sidebar-width';
 
+/** Viewport width (px) at/below which mobile / narrow adaptations apply. */
+export const SC_NARROW_BREAKPOINT = 640;
+
 export function clampSidebarWidth(n: number): number {
   if (!Number.isFinite(n)) return SC_WIDTH_DEFAULT;
   return Math.min(SC_WIDTH_MAX, Math.max(SC_WIDTH_MIN, Math.round(n)));

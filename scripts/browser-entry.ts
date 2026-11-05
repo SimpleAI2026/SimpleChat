@@ -9,6 +9,7 @@ export {
   SC_WIDTH_MAX,
   SC_WIDTH_DEFAULT,
   SC_WIDTH_STORAGE_KEY,
+  SC_NARROW_BREAKPOINT,
   clampSidebarWidth,
   loadSidebarWidth,
   saveSidebarWidth,

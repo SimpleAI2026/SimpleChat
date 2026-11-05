@@ -42,6 +42,11 @@
   --sc-header-height: 56px;
   --sc-icon-size: 42px;
   --sc-z-index: 1000;
+  --sc-safe-top: env(safe-area-inset-top, 0px);
+  --sc-safe-right: env(safe-area-inset-right, 0px);
+  --sc-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --sc-safe-left: env(safe-area-inset-left, 0px);
+  --sc-vv-offset: 0px;
 
   display: block;
   font-family: var(--sc-font);
@@ -1261,4 +1266,111 @@ a.sc-icon-btn svg {
     opacity: 0.7;
     transform: none;
   }
+}
+
+
+/* ——— Mobile / narrow (≤640px via host data-narrow) ——— */
+:host([data-narrow]) {
+  --sc-touch: 44px;
+  --sc-icon-size: 40px;
+}
+
+/* Larger composer actions for finger taps */
+:host([data-narrow]) .sc-send {
+  height: 40px;
+  min-height: 40px;
+  min-width: 64px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+:host([data-narrow]) .sc-attach-btn {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+:host([data-narrow]) .sc-attach-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+:host([data-narrow]) .sc-composer-footer {
+  min-height: 40px;
+}
+
+:host([data-narrow]) .sc-composer {
+  padding-bottom: calc(var(--sc-space-3) + var(--sc-safe-bottom) + var(--sc-vv-offset));
+}
+
+:host([data-narrow]) .sc-resize-handle {
+  display: none !important;
+}
+
+/* sidebar: full-width sheet */
+:host([data-narrow]) .sc-root[data-layout="sidebar"] {
+  inset: 0;
+  inset-block: 0;
+  inset-inline: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 100dvh;
+  height: var(--sc-vv-height, 100dvh);
+  max-height: 100dvh;
+  max-height: var(--sc-vv-height, 100dvh);
+  border: none;
+  padding-top: var(--sc-safe-top);
+  padding-left: var(--sc-safe-left);
+  padding-right: var(--sc-safe-right);
+}
+
+/* panel: keep host-sized box; drawers + touch (no resize) */
+:host([data-narrow]) .sc-root[data-layout="panel"] {
+  --sc-icon-size: 40px;
+}
+
+/* extension: single column; thread list becomes overlay drawer */
+:host([data-narrow]) .sc-root[data-layout="extension"] {
+  height: 100dvh;
+  height: var(--sc-vv-height, 100dvh);
+  min-height: 0;
+  max-height: 100dvh;
+  max-height: var(--sc-vv-height, 100dvh);
+  padding-top: var(--sc-safe-top);
+  padding-left: var(--sc-safe-left);
+  padding-right: var(--sc-safe-right);
+  --sc-pad: var(--sc-space-3);
+  --sc-msg-col: 100%;
+  --sc-bubble-max: 100%;
+}
+
+:host([data-narrow]) .sc-root[data-layout="extension"] .sc-body {
+  flex-direction: column;
+}
+
+:host([data-narrow]) .sc-root[data-layout="extension"] .sc-thread-drawer {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  flex: none;
+  border-right: none;
+  z-index: 4;
+}
+
+:host([data-narrow]) .sc-root[data-layout="extension"] .sc-messages,
+:host([data-narrow]) .sc-root[data-layout="extension"] .sc-composer {
+  max-width: 100%;
+  padding-inline: var(--sc-pad);
+}
+
+:host([data-narrow]) .sc-root[data-layout="extension"] .sc-bubble,
+:host([data-narrow]) .sc-root[data-layout="extension"] .sc-msg.assistant .sc-bubble,
+:host([data-narrow]) .sc-root[data-layout="extension"] .sc-tools {
+  max-width: 100%;
+}
+
+:host([data-narrow]) .sc-thread-item {
+  min-height: 44px;
+  padding-block: 12px;
 }
